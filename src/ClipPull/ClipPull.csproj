@@ -8,9 +8,9 @@
     <RootNamespace>ClipPull</RootNamespace>
     <AssemblyName>ClipPull</AssemblyName>
     <ApplicationIcon>Assets\clippull.ico</ApplicationIcon>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <Authors>Sébastien Dubé</Authors>
-    <Description>Portable Windows downloader powered by yt-dlp, with queues, quality selection, audio, playlists, preview and local history.</Description>
+    <Description>Portable Windows downloader powered by yt-dlp, with queues, quality selection, audio, playlists, preview, local history and automatic dependency updates.</Description>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

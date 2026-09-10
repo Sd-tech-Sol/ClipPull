@@ -8,7 +8,7 @@
     <RootNamespace>ClipPull</RootNamespace>
     <AssemblyName>ClipPull</AssemblyName>
     <ApplicationIcon>Assets\clippull.ico</ApplicationIcon>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Sébastien Dubé</Authors>
     <Description>Simple portable Windows GUI for downloading videos with yt-dlp.</Description>
     <PublishSingleFile>true</PublishSingleFile>

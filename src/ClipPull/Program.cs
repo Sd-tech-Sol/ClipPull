@@ -6,6 +6,11 @@ internal static class Program
     private static void Main()
     {
         ApplicationConfiguration.Initialize();
-        Application.Run(new AdvancedMainForm());
+        var form = new AdvancedMainForm
+        {
+            Text = "ClipPull 0.3.1"
+        };
+        form.EnableStartupDependencyUpdates();
+        Application.Run(form);
     }
 }

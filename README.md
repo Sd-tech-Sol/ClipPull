@@ -18,6 +18,18 @@ ClipPull transmet les URL au moteur yt-dlp. Il peut donc fonctionner avec les si
 
 Le support réel dépend de yt-dlp et peut changer lorsqu'une plateforme modifie son site ou ses protections.
 
+## Nouveauté v0.3.1 : mises à jour automatiques des dépendances
+
+Au démarrage, ClipPull affiche immédiatement son interface puis vérifie automatiquement ses composants :
+
+- **yt-dlp** : ClipPull consulte la release officielle, compare le SHA-256 publié et remplace automatiquement le moteur local seulement si le nouveau binaire correspond au checksum officiel.
+- **FFmpeg** : si FFmpeg est déjà installé, ClipPull consulte `dependencies.json`, le manifeste de versions approuvées du dépôt. Si une version approuvée plus récente est disponible, l'archive est téléchargée, son SHA-256 est vérifié, puis la nouvelle version devient active. L'ancienne n'est supprimée qu'après une installation réussie.
+- Si FFmpeg n'a jamais été utilisé, il n'est pas téléchargé inutilement au démarrage. Il sera installé automatiquement au premier besoin audio/qualité élevée.
+- Une panne réseau ou une erreur de mise à jour ne bloque pas ClipPull : la dernière copie locale valide reste utilisable.
+- Une archive dont le SHA-256 ne correspond pas n'est jamais installée.
+
+Le manifeste FFmpeg n'accepte que des URL HTTPS du dépôt officiel `BtbN/FFmpeg-Builds`, des builds Windows x64 LGPL et des SHA-256 valides.
+
 ## Les 7 ajouts de la v0.3.0
 
 1. **Choix de qualité vidéo** — Auto (rapide), meilleure qualité, 1080p max, 720p max, 480p max ou petit fichier.
@@ -46,15 +58,17 @@ Le support réel dépend de yt-dlp et peut changer lorsqu'une plateforme modifie
 - Chrome, Edge, Firefox, Brave, Chromium, Opera et Vivaldi proposés
 - yt-dlp téléchargé depuis sa release officielle et vérifié par SHA-256
 
-## FFmpeg : seulement à la demande
+## FFmpeg : à la demande et version approuvée
 
 Les modes audio et les qualités qui peuvent nécessiter la fusion de pistes ont besoin de FFmpeg. ClipPull ne gonfle pas son EXE avec FFmpeg.
 
-Au premier usage d'une fonction qui l'exige, ClipPull demande confirmation puis télécharge un build Windows x64 **FFmpeg 9.0 LGPL** épinglé provenant de `BtbN/FFmpeg-Builds`. L'archive est vérifiée par son SHA-256 connu avant extraction. Seuls `ffmpeg.exe` et `ffprobe.exe` sont extraits dans `%LOCALAPPDATA%\ClipPull\ffmpeg`.
+Au premier usage d'une fonction qui l'exige, ClipPull demande confirmation puis récupère la version approuvée dans [`dependencies.json`](dependencies.json). Si le manifeste n'est pas joignable lors d'une première installation, ClipPull conserve une version de secours épinglée dans le code. L'archive est vérifiée par SHA-256 avant extraction. Seuls `ffmpeg.exe` et `ffprobe.exe` sont extraits dans `%LOCALAPPDATA%\ClipPull\ffmpeg`.
 
-Version épinglée : `n9.0.1-26-g5c8e7e2433`
+Le manifeste initial approuve : `n9.0.1-26-g5c8e7e2433`
 
-SHA-256 de l'archive : `4700c0bcb523466fdf5e36e22ad4ff3fadf33f203e2dbfdc78f5b4cd068b8818`
+SHA-256 initial de l'archive : `4700c0bcb523466fdf5e36e22ad4ff3fadf33f203e2dbfdc78f5b4cd068b8818`
+
+Après une mise à jour réussie, `active-version.txt` indique localement la version FFmpeg active. Une installation interrompue ou invalide ne remplace pas la version active précédente.
 
 ## Historique local
 
@@ -72,8 +86,8 @@ ClipPull ne réimplémente pas les extracteurs des plateformes. Il fournit une i
 - yt-dlp est téléchargé uniquement depuis sa release GitHub officielle et son SHA-256 est vérifié avant installation/remplacement.
 - ClipPull lance yt-dlp avec `--ignore-config` et `--no-plugin-dirs` pour ne pas charger implicitement des configurations ou plugins yt-dlp externes.
 - L'utilisation des cookies du navigateur est facultative et désactivée par défaut; ClipPull ne les exporte pas lui-même.
-- FFmpeg est épinglé à un build précis et vérifié par SHA-256 avant extraction.
-- Les données propres à ClipPull restent locales. Les requêtes nécessaires au téléchargement ou à l'aperçu sont évidemment envoyées aux plateformes concernées et aux sources officielles des moteurs.
+- FFmpeg est piloté par un manifeste de versions approuvées, limité à `BtbN/FFmpeg-Builds`, et chaque archive est vérifiée par SHA-256 avant extraction.
+- Les données propres à ClipPull restent locales. Les requêtes nécessaires au téléchargement, à l'aperçu et aux vérifications de mises à jour sont envoyées aux plateformes concernées, à GitHub et aux sources officielles des moteurs.
 
 ## Construire
 
@@ -84,7 +98,7 @@ Prérequis : Windows et .NET 10 SDK.
 dotnet publish src/ClipPull/ClipPull.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o dist
 ```
 
-Le résultat principal est `dist\ClipPull.exe`. GitHub Actions effectue aussi automatiquement le build Windows, calcule le SHA-256 du binaire et publie les versions.
+Le résultat principal est `dist\ClipPull.exe`. GitHub Actions effectue aussi automatiquement le build Windows, calcule le SHA-256 du binaire et publie/rafraîchit la release correspondant à la version du projet afin qu'elle pointe sur le dernier commit de cette version.
 
 ## Limites
 

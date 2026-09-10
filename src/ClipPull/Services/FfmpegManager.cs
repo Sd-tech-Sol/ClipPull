@@ -1,42 +1,142 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace ClipPull.Services;
 
 internal sealed class FfmpegManager
 {
-    // Pinned, reviewed asset: BtbN/FFmpeg-Builds, FFmpeg 9.0 branch, Windows x64 LGPL static.
-    private const string VersionId = "n9.0.1-26-g5c8e7e2433";
-    private const string ArchiveUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-06-13-06/ffmpeg-n9.0.1-26-g5c8e7e2433-win64-lgpl-9.0.zip";
-    private const string ArchiveSha256 = "4700c0bcb523466fdf5e36e22ad4ff3fadf33f203e2dbfdc78f5b4cd068b8818";
+    private const string ManifestUrl = "https://raw.githubusercontent.com/Sd-tech-Sol/ClipPull/main/dependencies.json";
+
+    // Safe offline fallback for first install if the manifest cannot be reached.
+    private const string BootstrapVersion = "n9.0.1-26-g5c8e7e2433";
+    private const string BootstrapArchiveUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-06-13-06/ffmpeg-n9.0.1-26-g5c8e7e2433-win64-lgpl-9.0.zip";
+    private const string BootstrapSha256 = "4700c0bcb523466fdf5e36e22ad4ff3fadf33f203e2dbfdc78f5b4cd068b8818";
 
     private static readonly HttpClient Http = CreateClient();
-    private readonly string _directory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ClipPull", "ffmpeg", VersionId);
+    private static readonly JsonSerializerOptions ManifestJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public string FfmpegPath => Path.Combine(_directory, "ffmpeg.exe");
-    public string FfprobePath => Path.Combine(_directory, "ffprobe.exe");
-    public string DirectoryPath => _directory;
-    public bool IsInstalled => File.Exists(FfmpegPath) && File.Exists(FfprobePath);
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly string _baseDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "ClipPull", "ffmpeg");
+
+    private string ActiveVersionPath => Path.Combine(_baseDirectory, "active-version.txt");
+
+    public bool IsInstalled => TryGetInstalledDirectory(out _);
 
     public async Task<string> EnsureAsync(Action<string>? status, IProgress<double>? progress, CancellationToken cancellationToken)
     {
-        if (IsInstalled)
+        await _gate.WaitAsync(cancellationToken);
+        try
         {
-            status?.Invoke("FFmpeg local prêt.");
-            return _directory;
+            Directory.CreateDirectory(_baseDirectory);
+
+            if (TryGetInstalledDirectory(out var installedDirectory))
+            {
+                status?.Invoke("FFmpeg local prêt.");
+                return installedDirectory;
+            }
+
+            ApprovedRelease release;
+            try
+            {
+                status?.Invoke("Vérification de la version FFmpeg approuvée...");
+                release = await GetApprovedReleaseAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                release = GetBootstrapRelease();
+                status?.Invoke("Manifest indisponible; utilisation de la version FFmpeg de secours vérifiée.");
+            }
+
+            return await InstallReleaseAsync(release, status, progress, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<string> UpdateInstalledAsync(Action<string>? status, IProgress<double>? progress, CancellationToken cancellationToken)
+    {
+        if (!TryGetInstalledDirectory(out _))
+        {
+            status?.Invoke("FFmpeg non installé; aucune mise à jour nécessaire.");
+            return "FFmpeg non installé";
         }
 
-        var baseDirectory = Path.GetDirectoryName(_directory)!;
-        Directory.CreateDirectory(baseDirectory);
-        var tempZip = Path.Combine(baseDirectory, $"ffmpeg-{Guid.NewGuid():N}.zip");
-        var tempExtract = Path.Combine(baseDirectory, $"extract-{Guid.NewGuid():N}");
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!TryGetInstalledDirectory(out var currentDirectory))
+                return "FFmpeg non installé";
+
+            status?.Invoke("Vérification du manifeste FFmpeg approuvé...");
+            var release = await GetApprovedReleaseAsync(cancellationToken);
+            var currentVersion = Path.GetFileName(currentDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+            if (string.Equals(currentVersion, release.Version, StringComparison.OrdinalIgnoreCase))
+            {
+                await WriteActiveVersionAsync(release.Version, cancellationToken);
+                status?.Invoke("FFmpeg à jour.");
+                return "FFmpeg à jour";
+            }
+
+            status?.Invoke($"Mise à jour FFmpeg {currentVersion} → {release.Version}...");
+            var installed = await InstallReleaseAsync(release, status, progress, cancellationToken);
+            CleanupOldVersions(installed);
+            status?.Invoke("FFmpeg mis à jour.");
+            return "FFmpeg à jour";
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task<ApprovedRelease> GetApprovedReleaseAsync(CancellationToken cancellationToken)
+    {
+        var json = await Http.GetStringAsync(ManifestUrl, cancellationToken);
+        var manifest = JsonSerializer.Deserialize<DependencyManifest>(json, ManifestJsonOptions)
+            ?? throw new InvalidOperationException("Le manifeste de dépendances est vide.");
+
+        if (manifest.SchemaVersion != 1 || manifest.Ffmpeg is null)
+            throw new InvalidOperationException("Le manifeste de dépendances n'est pas compatible.");
+
+        var version = manifest.Ffmpeg.Version?.Trim() ?? string.Empty;
+        var archiveUrl = manifest.Ffmpeg.ArchiveUrl?.Trim() ?? string.Empty;
+        var sha256 = manifest.Ffmpeg.Sha256?.Trim().ToLowerInvariant() ?? string.Empty;
+
+        if (!IsSafeVersion(version))
+            throw new InvalidOperationException("Version FFmpeg invalide dans le manifeste.");
+        if (!IsAllowedArchiveUrl(archiveUrl))
+            throw new InvalidOperationException("Source FFmpeg non autorisée dans le manifeste.");
+        if (!IsSha256(sha256))
+            throw new InvalidOperationException("SHA-256 FFmpeg invalide dans le manifeste.");
+
+        return new ApprovedRelease(version, archiveUrl, sha256);
+    }
+
+    private async Task<string> InstallReleaseAsync(
+        ApprovedRelease release,
+        Action<string>? status,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(_baseDirectory);
+        var targetDirectory = Path.Combine(_baseDirectory, release.Version);
+        var tempZip = Path.Combine(_baseDirectory, $"ffmpeg-{Guid.NewGuid():N}.zip");
+        var tempExtract = Path.Combine(_baseDirectory, $"extract-{Guid.NewGuid():N}");
 
         try
         {
-            status?.Invoke("Téléchargement de FFmpeg vérifié (~140 Mo)...");
-            using var response = await Http.GetAsync(ArchiveUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            status?.Invoke($"Téléchargement de FFmpeg {release.Version} (~140 Mo)...");
+            using var response = await Http.GetAsync(release.ArchiveUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             response.EnsureSuccessStatusCode();
             var total = response.Content.Headers.ContentLength;
 
@@ -50,6 +150,7 @@ internal sealed class FfmpegManager
                     var read = await source.ReadAsync(buffer, cancellationToken);
                     if (read == 0)
                         break;
+
                     await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                     written += read;
                     if (total is > 0)
@@ -59,8 +160,8 @@ internal sealed class FfmpegManager
 
             status?.Invoke("Vérification SHA-256 de FFmpeg...");
             var hash = await ComputeSha256Async(tempZip, cancellationToken);
-            if (!string.Equals(hash, ArchiveSha256, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("La vérification SHA-256 de FFmpeg a échoué. Rien n'a été installé.");
+            if (!string.Equals(hash, release.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("La vérification SHA-256 de FFmpeg a échoué. L'ancienne version a été conservée.");
 
             Directory.CreateDirectory(tempExtract);
             using (var archive = ZipFile.OpenRead(tempZip))
@@ -72,15 +173,17 @@ internal sealed class FfmpegManager
             if (!File.Exists(Path.Combine(tempExtract, "ffmpeg.exe")) || !File.Exists(Path.Combine(tempExtract, "ffprobe.exe")))
                 throw new InvalidOperationException("L'archive FFmpeg vérifiée ne contient pas les exécutables attendus.");
 
-            Directory.CreateDirectory(_directory);
-            File.Move(Path.Combine(tempExtract, "ffmpeg.exe"), FfmpegPath, true);
-            File.Move(Path.Combine(tempExtract, "ffprobe.exe"), FfprobePath, true);
-            await File.WriteAllTextAsync(Path.Combine(_directory, "SOURCE.txt"),
-                $"{VersionId}{Environment.NewLine}{ArchiveUrl}{Environment.NewLine}sha256:{ArchiveSha256}{Environment.NewLine}", cancellationToken);
+            Directory.CreateDirectory(targetDirectory);
+            File.Move(Path.Combine(tempExtract, "ffmpeg.exe"), Path.Combine(targetDirectory, "ffmpeg.exe"), true);
+            File.Move(Path.Combine(tempExtract, "ffprobe.exe"), Path.Combine(targetDirectory, "ffprobe.exe"), true);
+            await File.WriteAllTextAsync(Path.Combine(targetDirectory, "SOURCE.txt"),
+                $"{release.Version}{Environment.NewLine}{release.ArchiveUrl}{Environment.NewLine}sha256:{release.Sha256}{Environment.NewLine}manifest:{ManifestUrl}{Environment.NewLine}",
+                cancellationToken);
+            await WriteActiveVersionAsync(release.Version, cancellationToken);
 
             progress?.Report(100);
             status?.Invoke("FFmpeg prêt.");
-            return _directory;
+            return targetDirectory;
         }
         finally
         {
@@ -88,6 +191,92 @@ internal sealed class FfmpegManager
             try { if (Directory.Exists(tempExtract)) Directory.Delete(tempExtract, true); } catch { }
         }
     }
+
+    private bool TryGetInstalledDirectory(out string directory)
+    {
+        directory = string.Empty;
+        try
+        {
+            if (File.Exists(ActiveVersionPath))
+            {
+                var version = File.ReadAllText(ActiveVersionPath).Trim();
+                if (IsSafeVersion(version))
+                {
+                    var active = Path.Combine(_baseDirectory, version);
+                    if (HasExpectedBinaries(active))
+                    {
+                        directory = active;
+                        return true;
+                    }
+                }
+            }
+
+            var bootstrap = Path.Combine(_baseDirectory, BootstrapVersion);
+            if (HasExpectedBinaries(bootstrap))
+            {
+                directory = bootstrap;
+                return true;
+            }
+
+            if (!Directory.Exists(_baseDirectory))
+                return false;
+
+            var candidate = Directory.EnumerateDirectories(_baseDirectory)
+                .Where(path => !Path.GetFileName(path).StartsWith("extract-", StringComparison.OrdinalIgnoreCase))
+                .Where(HasExpectedBinaries)
+                .OrderByDescending(path => Directory.GetLastWriteTimeUtc(path))
+                .FirstOrDefault();
+
+            if (candidate is null)
+                return false;
+
+            directory = candidate;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task WriteActiveVersionAsync(string version, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(_baseDirectory);
+        var temp = Path.Combine(_baseDirectory, $"active-{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await File.WriteAllTextAsync(temp, version + Environment.NewLine, cancellationToken);
+            File.Move(temp, ActiveVersionPath, true);
+        }
+        finally
+        {
+            try { if (File.Exists(temp)) File.Delete(temp); } catch { }
+        }
+    }
+
+    private void CleanupOldVersions(string currentDirectory)
+    {
+        try
+        {
+            if (!Directory.Exists(_baseDirectory))
+                return;
+
+            var currentFullPath = Path.GetFullPath(currentDirectory).TrimEnd(Path.DirectorySeparatorChar);
+            foreach (var directory in Directory.EnumerateDirectories(_baseDirectory))
+            {
+                var fullPath = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar);
+                if (string.Equals(fullPath, currentFullPath, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                try { Directory.Delete(directory, true); } catch { }
+            }
+        }
+        catch { }
+    }
+
+    private static bool HasExpectedBinaries(string directory) =>
+        File.Exists(Path.Combine(directory, "ffmpeg.exe")) &&
+        File.Exists(Path.Combine(directory, "ffprobe.exe"));
 
     private static void ExtractBinary(ZipArchive archive, string fileName, string destination)
     {
@@ -106,10 +295,47 @@ internal sealed class FfmpegManager
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
+    private static ApprovedRelease GetBootstrapRelease() =>
+        new(BootstrapVersion, BootstrapArchiveUrl, BootstrapSha256);
+
+    private static bool IsSafeVersion(string version) =>
+        version.Length is > 0 and <= 100 &&
+        version.All(ch => char.IsLetterOrDigit(ch) || ch is '.' or '_' or '+' or '-');
+
+    private static bool IsSha256(string value) =>
+        value.Length == 64 && value.All(Uri.IsHexDigit);
+
+    private static bool IsAllowedArchiveUrl(string value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri))
+            return false;
+
+        return uri.Scheme == Uri.UriSchemeHttps
+            && string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase)
+            && uri.AbsolutePath.StartsWith("/BtbN/FFmpeg-Builds/releases/download/", StringComparison.OrdinalIgnoreCase)
+            && uri.AbsolutePath.Contains("win64-lgpl", StringComparison.OrdinalIgnoreCase)
+            && uri.AbsolutePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static HttpClient CreateClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipPull/0.3 (+https://github.com/Sd-tech-Sol/ClipPull)");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipPull/0.3.1 (+https://github.com/Sd-tech-Sol/ClipPull)");
         return client;
     }
+
+    private sealed class DependencyManifest
+    {
+        public int SchemaVersion { get; set; }
+        public FfmpegEntry? Ffmpeg { get; set; }
+    }
+
+    private sealed class FfmpegEntry
+    {
+        public string? Version { get; set; }
+        public string? ArchiveUrl { get; set; }
+        public string? Sha256 { get; set; }
+    }
+
+    private readonly record struct ApprovedRelease(string Version, string ArchiveUrl, string Sha256);
 }

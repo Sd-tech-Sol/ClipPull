@@ -1,0 +1,89 @@
+name: Build ClipPull
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Generate application icon
+        shell: pwsh
+        run: ./scripts/generate-icon.ps1
+
+      - name: Restore
+        run: dotnet restore src/ClipPull/ClipPull.csproj
+
+      - name: Publish portable EXE
+        shell: pwsh
+        run: >-
+          dotnet publish src/ClipPull/ClipPull.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          -o dist
+
+      - name: Verify single-file output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'dist/ClipPull.exe')) {
+            throw 'dist/ClipPull.exe was not produced.'
+          }
+
+          $unexpected = Get-ChildItem dist -File | Where-Object { $_.Name -ne 'ClipPull.exe' }
+          if ($unexpected) {
+            Write-Host 'Additional publish files:'
+            $unexpected | ForEach-Object { Write-Host $_.Name }
+          }
+
+          $hash = (Get-FileHash 'dist/ClipPull.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  ClipPull.exe" | Set-Content 'dist/ClipPull.exe.sha256' -Encoding ascii
+          Write-Host "ClipPull.exe SHA-256: $hash"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipPull-win-x64
+          path: |
+            dist/ClipPull.exe
+            dist/ClipPull.exe.sha256
+          if-no-files-found: error
+
+      - name: Create initial v0.1.0 release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v0.1.0 --repo '${{ github.repository }}' 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host 'Release v0.1.0 already exists; leaving it unchanged.'
+            exit 0
+          }
+
+          gh release create v0.1.0 `
+            'dist/ClipPull.exe' `
+            'dist/ClipPull.exe.sha256' `
+            --repo '${{ github.repository }}' `
+            --target '${{ github.sha }}' `
+            --title 'ClipPull v0.1.0' `
+            --notes 'Première version portable Windows. Télécharge ClipPull.exe, ouvre-le et colle un lien vidéo.'

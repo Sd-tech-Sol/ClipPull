@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "ffmpeg": {
+    "version": "n9.0.1-26-g5c8e7e2433",
+    "archiveUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-06-13-06/ffmpeg-n9.0.1-26-g5c8e7e2433-win64-lgpl-9.0.zip",
+    "sha256": "4700c0bcb523466fdf5e36e22ad4ff3fadf33f203e2dbfdc78f5b4cd068b8818"
+  }
+}

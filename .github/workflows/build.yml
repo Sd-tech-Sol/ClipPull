@@ -88,10 +88,11 @@ jobs:
             exit 0
           }
 
+          $notes = "Video quality, M4A/MP3 audio, limited playlists, TXT drag-and-drop, local history, copyable error report, and title/thumbnail preview."
           gh release create $tag `
             'dist/ClipPull.exe' `
             'dist/ClipPull.exe.sha256' `
             --repo '${{ github.repository }}' `
             --target '${{ github.sha }}' `
             --title "ClipPull $tag" `
-            --notes 'Qualité vidéo, audio M4A/MP3, playlists limitées, glisser-déposer TXT, historique local, rapport d’erreurs copiable et aperçu titre/miniature.'
+            --notes $notes

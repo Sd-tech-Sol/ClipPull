@@ -1,115 +1,117 @@
 # ClipPull
 
-ClipPull est un téléchargeur média Windows portable construit autour de [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+*Read this in [French / en français](README.fr.md).*
 
-Objectif : coller un ou plusieurs liens, choisir quelques options simples, cliquer **Télécharger tout**, puis récupérer les fichiers localement. Aucun compte ClipPull, aucune télémétrie et aucun serveur ClipPull.
+ClipPull is a small portable Windows media downloader built around [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
-## Télécharger
+The goal is simple: paste one or more links, choose a few straightforward options, click **Download all**, and save the files locally. No ClipPull account, no telemetry, and no ClipPull server.
 
-La version Windows portable est publiée dans **Releases** :
+## Download
+
+The portable Windows build is published under **Releases**:
 
 https://github.com/Sd-tech-Sol/ClipPull/releases
 
-Télécharge `ClipPull.exe`, place-le où tu veux et ouvre-le. Aucun installateur n'est requis.
+Download `ClipPull.exe`, place it wherever you want, and run it. No installer is required.
 
-## Plateformes
+## Platforms
 
-ClipPull transmet les URL au moteur yt-dlp. Il peut donc fonctionner avec les sites pris en charge par yt-dlp, notamment Facebook/Reels, TikTok, Instagram/Reels, YouTube/Shorts, X/Twitter, Vimeo et plusieurs autres sites.
+ClipPull passes URLs to the yt-dlp engine. It can therefore work with sites supported by yt-dlp, including Facebook/Reels, TikTok, Instagram/Reels, YouTube/Shorts, X/Twitter, Vimeo, and many others.
 
-Le support réel dépend de yt-dlp et peut changer lorsqu'une plateforme modifie son site ou ses protections.
+Actual support depends on yt-dlp and may change when a platform modifies its site or protections.
 
-## Nouveauté v0.3.1 : mises à jour automatiques des dépendances
+## New in v0.3.1: automatic dependency updates
 
-Au démarrage, ClipPull affiche immédiatement son interface puis vérifie automatiquement ses composants :
+At startup, ClipPull opens its interface immediately and then checks its components automatically:
 
-- **yt-dlp** : ClipPull consulte la release officielle, compare le SHA-256 publié et remplace automatiquement le moteur local seulement si le nouveau binaire correspond au checksum officiel.
-- **FFmpeg** : si FFmpeg est déjà installé, ClipPull consulte `dependencies.json`, le manifeste de versions approuvées du dépôt. Si une version approuvée plus récente est disponible, l'archive est téléchargée, son SHA-256 est vérifié, puis la nouvelle version devient active. L'ancienne n'est supprimée qu'après une installation réussie.
-- Si FFmpeg n'a jamais été utilisé, il n'est pas téléchargé inutilement au démarrage. Il sera installé automatiquement au premier besoin audio/qualité élevée.
-- Une panne réseau ou une erreur de mise à jour ne bloque pas ClipPull : la dernière copie locale valide reste utilisable.
-- Une archive dont le SHA-256 ne correspond pas n'est jamais installée.
+- **yt-dlp**: ClipPull checks the official release, compares the published SHA-256, and replaces the local engine only when the downloaded binary matches the official checksum.
+- **FFmpeg**: if FFmpeg is already installed, ClipPull reads `dependencies.json`, the repository's approved-version manifest. If a newer approved version is available, the archive is downloaded and verified by SHA-256 before it becomes active. The previous version is removed only after a successful installation.
+- If FFmpeg has never been used, ClipPull does not download it unnecessarily at startup. It is installed automatically the first time an audio or high-quality video option requires it.
+- A network outage or update failure does not prevent ClipPull from starting; the last valid local copy remains usable.
+- An archive whose SHA-256 does not match is never installed.
 
-Le manifeste FFmpeg n'accepte que des URL HTTPS du dépôt officiel `BtbN/FFmpeg-Builds`, des builds Windows x64 LGPL et des SHA-256 valides.
+The FFmpeg manifest accepts only HTTPS URLs from the official `BtbN/FFmpeg-Builds` repository, Windows x64 LGPL builds, and valid SHA-256 hashes.
 
-## Les 7 ajouts de la v0.3.0
+## The 7 additions introduced in v0.3.0
 
-1. **Choix de qualité vidéo** — Auto (rapide), meilleure qualité, 1080p max, 720p max, 480p max ou petit fichier.
-2. **Audio seulement** — extraction en M4A ou MP3. FFmpeg est installé localement seulement si cette fonction est utilisée.
-3. **Playlists complètes** — option explicite, désactivée par défaut, avec confirmation et limite configurable par lien (50 éléments par défaut) pour éviter un téléchargement massif accidentel.
-4. **Glisser-déposer d'un fichier `.txt`** — dépose directement dans la fenêtre un fichier contenant des liens; l'import classique reste disponible.
-5. **Historique local facultatif** — activé par défaut avec le mécanisme `--download-archive` de yt-dlp afin d'éviter de retélécharger le même contenu. L'historique peut être effacé dans l'interface sans supprimer les médias déjà téléchargés.
-6. **Rapport d'erreurs copiable** — les échecs sont conservés pour la session et peuvent être copiés en un clic, avec plateforme, URL et message utile. Le bouton de réessai des échecs reste disponible.
-7. **Aperçu avant téléchargement** — le premier lien peut être analysé pour afficher son titre, sa plateforme, sa durée lorsqu'elle est disponible et sa miniature.
+1. **Video quality selection** — Auto (fast), best quality, 1080p max, 720p max, 480p max, or smaller file.
+2. **Audio only** — extract as M4A or MP3. FFmpeg is installed locally only when this feature is used.
+3. **Full playlists** — explicit option, disabled by default, with confirmation and a configurable per-link limit (50 items by default) to reduce accidental mass downloads.
+4. **Drag and drop a `.txt` file** — drop a text file containing links directly onto the window; the normal import button remains available.
+5. **Optional local history** — enabled by default through yt-dlp's `--download-archive` mechanism to avoid downloading the same content again. The history can be cleared from the interface without deleting downloaded media.
+6. **Copyable error report** — failures are kept for the current session and can be copied in one click with platform, URL, and a useful error message. Failed items can also be retried.
+7. **Preview before downloading** — the first link can be analyzed to show its title, platform, duration when available, and thumbnail.
 
-## Fonctions déjà présentes
+## Existing features
 
 - Windows 10/11 x64
-- Un seul `ClipPull.exe` portable
-- Plusieurs liens à la fois, un par ligne
-- Téléchargements traités séquentiellement
-- Détection et suppression des doublons exacts dans la liste
-- File visible avec plateforme et statut de chaque lien
-- Progression du téléchargement en cours et progression `x/y`
-- Un échec n'arrête pas les liens suivants
-- Bouton **Réessayer les échecs**
-- Import de listes depuis `.txt`
-- Détection des liens présents dans le presse-papiers au démarrage
-- Dossier par défaut `Téléchargements\ClipPull`
-- Option facultative pour utiliser une session de navigateur locale avec `--cookies-from-browser`
-- Chrome, Edge, Firefox, Brave, Chromium, Opera et Vivaldi proposés
-- yt-dlp téléchargé depuis sa release officielle et vérifié par SHA-256
+- One portable `ClipPull.exe`
+- Multiple links at once, one per line
+- Sequential downloads
+- Exact duplicate detection and removal in the input list
+- Visible queue with platform and status for each link
+- Progress for the current download and `x/y` queue progress
+- One failed link does not stop the remaining queue
+- **Retry failed items** button
+- Import link lists from `.txt`
+- Clipboard URL detection at startup
+- Default destination: `Downloads\ClipPull`
+- Optional local browser-session support through `--cookies-from-browser`
+- Chrome, Edge, Firefox, Brave, Chromium, Opera, and Vivaldi options
+- yt-dlp downloaded from its official release and verified with SHA-256
 
-## FFmpeg : à la demande et version approuvée
+## FFmpeg: on demand and from an approved version
 
-Les modes audio et les qualités qui peuvent nécessiter la fusion de pistes ont besoin de FFmpeg. ClipPull ne gonfle pas son EXE avec FFmpeg.
+Audio modes and video qualities that may require merging separate streams need FFmpeg. ClipPull does not bundle FFmpeg inside its executable.
 
-Au premier usage d'une fonction qui l'exige, ClipPull demande confirmation puis récupère la version approuvée dans [`dependencies.json`](dependencies.json). Si le manifeste n'est pas joignable lors d'une première installation, ClipPull conserve une version de secours épinglée dans le code. L'archive est vérifiée par SHA-256 avant extraction. Seuls `ffmpeg.exe` et `ffprobe.exe` sont extraits dans `%LOCALAPPDATA%\ClipPull\ffmpeg`.
+The first time a feature requires it, ClipPull asks for confirmation and retrieves the approved version defined in [`dependencies.json`](dependencies.json). If the manifest cannot be reached during a first installation, ClipPull keeps a pinned fallback version in the application code. The archive is verified with SHA-256 before extraction. Only `ffmpeg.exe` and `ffprobe.exe` are extracted under `%LOCALAPPDATA%\ClipPull\ffmpeg`.
 
-Le manifeste initial approuve : `n9.0.1-26-g5c8e7e2433`
+The initial manifest approves: `n9.0.1-26-g5c8e7e2433`
 
-SHA-256 initial de l'archive : `4700c0bcb523466fdf5e36e22ad4ff3fadf33f203e2dbfdc78f5b4cd068b8818`
+Initial archive SHA-256: `4700c0bcb523466fdf5e36e22ad4ff3fadf33f203e2dbfdc78f5b4cd068b8818`
 
-Après une mise à jour réussie, `active-version.txt` indique localement la version FFmpeg active. Une installation interrompue ou invalide ne remplace pas la version active précédente.
+After a successful update, `active-version.txt` records the active local FFmpeg version. An interrupted or invalid installation never replaces the previously active version.
 
-## Historique local
+## Local history
 
-Lorsque l'option d'historique est activée, ClipPull utilise directement le fichier d'archive de yt-dlp :
+When local history is enabled, ClipPull uses yt-dlp's download archive directly:
 
 `%LOCALAPPDATA%\ClipPull\download-archive.txt`
 
-Ce fichier contient les identifiants nécessaires pour reconnaître du contenu déjà téléchargé. Il peut être supprimé avec **Effacer historique**. Aucun historique n'est envoyé à ClipPull ou à un serveur ClipPull.
+This file stores the identifiers needed to recognize content that has already been downloaded. It can be deleted from the interface with **Clear history**. No history is sent to ClipPull or to a ClipPull server.
 
-## Fonctionnement et sécurité
+## Operation and security
 
-ClipPull ne réimplémente pas les extracteurs des plateformes. Il fournit une interface locale et lance le binaire officiel `yt-dlp.exe`.
+ClipPull does not reimplement platform extractors. It provides a local interface and launches the official `yt-dlp.exe` binary.
 
-- Les URL et autres paramètres sont passés avec `ProcessStartInfo.ArgumentList`, pas par concaténation d'une ligne de commande.
-- yt-dlp est téléchargé uniquement depuis sa release GitHub officielle et son SHA-256 est vérifié avant installation/remplacement.
-- ClipPull lance yt-dlp avec `--ignore-config` et `--no-plugin-dirs` pour ne pas charger implicitement des configurations ou plugins yt-dlp externes.
-- L'utilisation des cookies du navigateur est facultative et désactivée par défaut; ClipPull ne les exporte pas lui-même.
-- FFmpeg est piloté par un manifeste de versions approuvées, limité à `BtbN/FFmpeg-Builds`, et chaque archive est vérifiée par SHA-256 avant extraction.
-- Les données propres à ClipPull restent locales. Les requêtes nécessaires au téléchargement, à l'aperçu et aux vérifications de mises à jour sont envoyées aux plateformes concernées, à GitHub et aux sources officielles des moteurs.
+- URLs and other parameters are passed with `ProcessStartInfo.ArgumentList`, not by concatenating a shell command.
+- yt-dlp is downloaded only from its official GitHub release and its SHA-256 is verified before installation or replacement.
+- ClipPull launches yt-dlp with `--ignore-config` and `--no-plugin-dirs` so external yt-dlp configuration or plugin directories are not loaded implicitly.
+- Browser cookies are optional and disabled by default; ClipPull does not export them itself.
+- FFmpeg is controlled by an approved-version manifest restricted to `BtbN/FFmpeg-Builds`, and every archive is verified with SHA-256 before extraction.
+- ClipPull-specific data remains local. Requests required for downloads, previews, and update checks are sent to the relevant platforms, GitHub, and the official component sources.
 
-## Construire
+## Build
 
-Prérequis : Windows et .NET 10 SDK.
+Requirements: Windows and the .NET 10 SDK.
 
 ```powershell
 ./scripts/generate-icon.ps1
 dotnet publish src/ClipPull/ClipPull.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o dist
 ```
 
-Le résultat principal est `dist\ClipPull.exe`. GitHub Actions effectue aussi automatiquement le build Windows, calcule le SHA-256 du binaire et publie/rafraîchit la release correspondant à la version du projet afin qu'elle pointe sur le dernier commit de cette version.
+The main output is `dist\ClipPull.exe`. GitHub Actions also builds the Windows executable automatically, calculates its SHA-256, and publishes or refreshes the release matching the project version so it points to the latest commit for that version.
 
-## Limites
+## Limitations
 
-Les plateformes changent régulièrement leurs protections et leurs formats. Une URL peut cesser temporairement de fonctionner jusqu'à une mise à jour de yt-dlp. Un aperçu ou un contenu nécessitant une authentification peut également échouer selon la plateforme ou le navigateur.
+Platforms regularly change their protections and media formats. A URL may temporarily stop working until yt-dlp is updated. Previewing or downloading authenticated content may also fail depending on the platform or browser.
 
-Le mode playlist est volontairement limité par défaut. Augmenter cette limite peut télécharger beaucoup de données.
+Playlist mode is intentionally limited by default. Increasing the limit can download a large amount of data.
 
-Télécharge seulement du contenu que tu as le droit de conserver et respecte les droits d'auteur, les conditions du service et les lois applicables.
+Download only content you are allowed to keep, and respect copyright, service terms, and applicable laws.
 
-## Licence
+## License
 
-Le code propre à ClipPull est distribué sous licence MIT. yt-dlp et FFmpeg sont des projets tiers indépendants avec leurs propres licences; leurs binaires ne sont pas inclus dans `ClipPull.exe`.
+ClipPull's own code is distributed under the MIT License. yt-dlp and FFmpeg are independent third-party projects with their own licenses; their binaries are not included in `ClipPull.exe`.
 
-Voir [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

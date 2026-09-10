@@ -4,7 +4,7 @@ using ClipPull.Services;
 
 namespace ClipPull;
 
-internal sealed class MainForm : Form
+internal sealed partial class MainForm : Form
 {
     private readonly TextBox _urlsBox = new();
     private readonly TextBox _folderBox = new();
@@ -714,6 +714,6 @@ internal sealed class MainForm : Form
             "ClipPull");
     }
 
-    [GeneratedRegex(@"https?://[^\s<>\""']+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex("https?://[^\\s<>\"']+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex UrlRegex();
 }

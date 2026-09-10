@@ -4,6 +4,14 @@ ClipPull est un petit téléchargeur vidéo Windows portable construit autour de
 
 Objectif : coller un lien, cliquer **Télécharger**, récupérer le fichier localement. Aucun compte ClipPull, aucune télémétrie, aucun serveur ClipPull.
 
+## Télécharger
+
+La version Windows portable est publiée dans **Releases** :
+
+https://github.com/Sd-tech-Sol/ClipPull/releases
+
+Télécharge `ClipPull.exe`, place-le où tu veux et ouvre-le. Il n'y a rien à installer.
+
 ## V1
 
 - Windows 10/11 x64
@@ -27,13 +35,14 @@ La V1 choisit en priorité un format vidéo MP4 déjà multiplexé afin de reste
 
 ## Construire
 
-Prérequis : .NET 10 SDK.
+Prérequis : Windows et .NET 10 SDK.
 
 ```powershell
-dotnet publish src/ClipPull/ClipPull.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist
+./scripts/generate-icon.ps1
+dotnet publish src/ClipPull/ClipPull.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o dist
 ```
 
-Le résultat est `dist\ClipPull.exe`.
+Le résultat principal est `dist\ClipPull.exe`. GitHub Actions exécute le même principe automatiquement et publie aussi le SHA-256 du binaire.
 
 ## Sécurité
 
@@ -52,3 +61,5 @@ Télécharge seulement du contenu que tu as le droit de conserver et respecte le
 ## Licence
 
 Le code propre à ClipPull est distribué sous licence MIT. yt-dlp est un projet tiers indépendant avec ses propres licences; ClipPull télécharge son exécutable officiel au moment de l'utilisation plutôt que de le redistribuer dans ce dépôt.
+
+Voir aussi [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

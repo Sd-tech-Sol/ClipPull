@@ -73,7 +73,7 @@ jobs:
             dist/ClipPull.exe.sha256
           if-no-files-found: error
 
-      - name: Create versioned release
+      - name: Create or refresh versioned release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         env:
@@ -81,14 +81,23 @@ jobs:
         run: |
           $version = '${{ steps.version.outputs.version }}'
           $tag = "v$version"
+          $notes = "Portable ClipPull build with verified automatic dependency updates, media quality/audio options, playlists, queueing, history, error reports, and preview."
 
           gh release view $tag --repo '${{ github.repository }}' 2>$null
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $tag already exists; leaving it unchanged."
+            gh release upload $tag `
+              'dist/ClipPull.exe' `
+              'dist/ClipPull.exe.sha256' `
+              --clobber `
+              --repo '${{ github.repository }}'
+            gh release edit $tag `
+              --repo '${{ github.repository }}' `
+              --target '${{ github.sha }}' `
+              --title "ClipPull $tag" `
+              --notes $notes
             exit 0
           }
 
-          $notes = "Video quality, M4A/MP3 audio, limited playlists, TXT drag-and-drop, local history, copyable error report, and title/thumbnail preview."
           gh release create $tag `
             'dist/ClipPull.exe' `
             'dist/ClipPull.exe.sha256' `

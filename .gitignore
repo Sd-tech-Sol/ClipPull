@@ -6,3 +6,4 @@ dist/
 *.suo
 *.tmp
 *.log
+src/ClipPull/Assets/clippull.ico

@@ -22,17 +22,26 @@ internal sealed partial class YtDlpManager
     {
         Directory.CreateDirectory(_engineDirectory);
 
-        string? latestHash = null;
+        string? latestHash;
         try
         {
             status?.Invoke("Vérification du moteur yt-dlp...");
             var sums = await Http.GetStringAsync(ChecksumsUrl, cancellationToken);
             latestHash = ParseYtDlpHash(sums);
         }
-        catch when (await HasValidCachedEngineAsync(cancellationToken))
+        catch (OperationCanceledException)
         {
-            status?.Invoke("Moteur local vérifié.");
-            return EnginePath;
+            throw;
+        }
+        catch
+        {
+            if (await HasValidCachedEngineAsync(cancellationToken))
+            {
+                status?.Invoke("Moteur local vérifié.");
+                return EnginePath;
+            }
+
+            throw new InvalidOperationException("Impossible de joindre la release officielle de yt-dlp et aucun moteur local vérifié n'est disponible.");
         }
 
         if (latestHash is null)
@@ -94,6 +103,10 @@ internal sealed partial class YtDlpManager
             var actualHash = await ComputeSha256Async(EnginePath, cancellationToken);
             return string.Equals(actualHash, storedHash, StringComparison.OrdinalIgnoreCase);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch
         {
             return false;
@@ -133,6 +146,6 @@ internal sealed partial class YtDlpManager
         return client;
     }
 
-    [GeneratedRegex("[a-fA-F0-9]{64}", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^[a-fA-F0-9]{64}$|[a-fA-F0-9]{64}", RegexOptions.CultureInvariant)]
     private static partial Regex HashRegex();
 }

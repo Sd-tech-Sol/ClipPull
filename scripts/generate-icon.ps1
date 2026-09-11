@@ -12,13 +12,13 @@ $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
 $graphics.Clear([System.Drawing.Color]::Transparent)
 
-$blue = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(15, 108, 189))
+$teal = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(0, 143, 136))
 $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
 $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::White), 18
 $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
 $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
 
-$graphics.FillEllipse($blue, 8, 8, 240, 240)
+$graphics.FillEllipse($teal, 8, 8, 240, 240)
 
 # Download arrow.
 $arrow = [System.Drawing.Point[]]@(
@@ -48,7 +48,7 @@ finally {
     $icon.Dispose()
     $pen.Dispose()
     $white.Dispose()
-    $blue.Dispose()
+    $teal.Dispose()
     $graphics.Dispose()
     $bitmap.Dispose()
 }

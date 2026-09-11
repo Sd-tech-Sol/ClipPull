@@ -4,12 +4,12 @@ namespace ClipPull.ViewModels;
 
 internal sealed partial class QueueItemViewModel : ObservableObject
 {
-    public QueueItemViewModel(string url, string platform, string displayText, int accentIndex)
+    public QueueItemViewModel(string url, string platform, string displayText, string optionsText)
     {
         Url = url;
         Platform = platform;
         DisplayText = displayText;
-        AccentIndex = accentIndex;
+        OptionsText = optionsText;
     }
 
     public string Url { get; }
@@ -20,21 +20,27 @@ internal sealed partial class QueueItemViewModel : ObservableObject
     [ObservableProperty]
     private string _displayText;
 
-    /// <summary>Index into the neutral per-row accent palette (not a platform brand color).</summary>
-    public int AccentIndex { get; }
+    public string OptionsText { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRetry))]
+    [NotifyPropertyChangedFor(nameof(StatusDisplayText))]
     private QueueItemState _state = QueueItemState.Waiting;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusDisplayText))]
     private string _statusText = "En attente";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusDisplayText))]
     private double _progress;
 
     [ObservableProperty]
     private string? _detailText;
 
     public bool CanRetry => State == QueueItemState.Failed;
+
+    public string StatusDisplayText => State == QueueItemState.Active
+        ? $"Téléchargement  {Progress:0}%"
+        : StatusText;
 }

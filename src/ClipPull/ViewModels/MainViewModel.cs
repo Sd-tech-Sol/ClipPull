@@ -39,12 +39,18 @@ internal sealed partial class MainViewModel : ObservableObject
         OutputFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             "Downloads", "ClipPull");
-        Queue.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsQueueEmpty));
+        Queue.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(IsQueueEmpty));
+            OnPropertyChanged(nameof(QueueSummaryText));
+        };
     }
 
     public ObservableCollection<QueueItemViewModel> Queue { get; } = [];
 
     public bool IsQueueEmpty => Queue.Count == 0;
+
+    public string QueueSummaryText => Queue.Count == 1 ? "1 élément" : $"{Queue.Count} éléments";
 
     public IReadOnlyList<string> Browsers { get; } =
         ["Chrome", "Edge", "Firefox", "Brave", "Chromium", "Opera", "Vivaldi"];
@@ -60,15 +66,65 @@ internal sealed partial class MainViewModel : ObservableObject
     partial void OnUrlsTextChanged(string value)
     {
         OnPropertyChanged(nameof(LinkCount));
+        OnPropertyChanged(nameof(HasLinks));
+        OnPropertyChanged(nameof(LinkSummaryText));
+        OnPropertyChanged(nameof(CanUsePrimaryAction));
     }
 
     public int LinkCount => GetUniqueUrls(UrlsText).Count;
 
+    public bool HasLinks => LinkCount > 0;
+
+    public string LinkSummaryText => LinkCount == 1 ? "1 lien prêt" : $"{LinkCount} liens prêts";
+
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OutputFolderDisplay))]
     private string _outputFolder;
+
+    public string OutputFolderDisplay
+    {
+        get
+        {
+            var downloads = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "Downloads");
+
+            if (!OutputFolder.StartsWith(downloads, StringComparison.OrdinalIgnoreCase))
+                return OutputFolder;
+
+            var relative = Path.GetRelativePath(downloads, OutputFolder);
+            return relative == "." ? "Téléchargements" : $"Téléchargements\\{relative}";
+        }
+    }
 
     [ObservableProperty]
     private int _formatIndex;
+
+    public bool IsVideoSelected
+    {
+        get => FormatIndex == 0;
+        set { if (value) FormatIndex = 0; }
+    }
+
+    public bool IsM4aSelected
+    {
+        get => FormatIndex == 1;
+        set { if (value) FormatIndex = 1; }
+    }
+
+    public bool IsMp3Selected
+    {
+        get => FormatIndex == 2;
+        set { if (value) FormatIndex = 2; }
+    }
+
+    partial void OnFormatIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(IsVideoSelected));
+        OnPropertyChanged(nameof(IsM4aSelected));
+        OnPropertyChanged(nameof(IsMp3Selected));
+        OnPropertyChanged(nameof(IsQualityEnabled));
+    }
 
     [ObservableProperty]
     private int _qualityIndex;
@@ -104,6 +160,7 @@ internal sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsBrowserEnabled))]
     [NotifyPropertyChangedFor(nameof(PrimaryActionLabel))]
     [NotifyPropertyChangedFor(nameof(PrimaryActionIcon))]
+    [NotifyPropertyChangedFor(nameof(CanUsePrimaryAction))]
     private bool _isBusy;
 
     public bool IsNotBusy => !IsBusy;
@@ -111,6 +168,8 @@ internal sealed partial class MainViewModel : ObservableObject
     public SymbolRegular PrimaryActionIcon => IsBusy ? SymbolRegular.Dismiss24 : SymbolRegular.ArrowDownload24;
 
     public string PrimaryActionLabel => IsBusy ? "Annuler" : "Télécharger tout";
+
+    public bool CanUsePrimaryAction => IsBusy || HasLinks;
 
     [ObservableProperty]
     private bool _hasErrors;
@@ -132,12 +191,31 @@ internal sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _ytDlpStatusText = "Vérification...";
 
+    partial void OnYtDlpStatusTextChanged(string value) => OnPropertyChanged(nameof(DependencySummaryText));
+
     [ObservableProperty]
     private string _ffmpegStatusText = "Non vérifié";
 
+    partial void OnFfmpegStatusTextChanged(string value) => OnPropertyChanged(nameof(DependencySummaryText));
+
+    public string DependencySummaryText
+    {
+        get
+        {
+            if (YtDlpStatusText == "À jour" && FfmpegStatusText is "À jour" or "Non installé")
+                return "Composants prêts";
+            if (YtDlpStatusText == "Hors ligne")
+                return "yt-dlp hors ligne";
+            if (FfmpegStatusText == "Indisponible")
+                return "FFmpeg indisponible";
+
+            return "Vérification...";
+        }
+    }
+
     // InfoBar
     [ObservableProperty]
-    private bool _isInfoBarOpen = true;
+    private bool _isInfoBarOpen;
 
     [ObservableProperty]
     private string _infoBarTitle = "Prêt";
@@ -172,28 +250,42 @@ internal sealed partial class MainViewModel : ObservableObject
 
         try
         {
-            YtDlpStatusText = "Vérification...";
-            await _engineManager.EnsureAsync(_ => { }, token);
-            YtDlpStatusText = "À jour";
+            try
+            {
+                YtDlpStatusText = "Vérification...";
+                await _engineManager.EnsureAsync(_ => { }, token);
+                YtDlpStatusText = "À jour";
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch
+            {
+                YtDlpStatusText = "Hors ligne";
+            }
 
-            if (_ffmpegManager.IsInstalled)
+            try
             {
-                FfmpegStatusText = "Vérification...";
-                var progress = new Progress<double>(_ => { });
-                await _ffmpegManager.UpdateInstalledAsync(_ => { }, progress, token);
-                FfmpegStatusText = "À jour";
+                if (_ffmpegManager.IsInstalled)
+                {
+                    FfmpegStatusText = "Vérification...";
+                    var progress = new Progress<double>(_ => { });
+                    await _ffmpegManager.UpdateInstalledAsync(_ => { }, progress, token);
+                    FfmpegStatusText = "À jour";
+                }
+                else
+                {
+                    FfmpegStatusText = "Non installé";
+                }
             }
-            else
+            catch (OperationCanceledException)
             {
-                FfmpegStatusText = "Non installé";
             }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch
-        {
-            YtDlpStatusText = "Hors ligne";
+            catch
+            {
+                FfmpegStatusText = "Indisponible";
+            }
         }
         finally
         {
@@ -701,7 +793,10 @@ internal sealed partial class MainViewModel : ObservableObject
         {
             var url = urls[i];
             var platform = GetPlatform(url);
-            Queue.Add(new QueueItemViewModel(url, platform, ShortenUrl(url), i % 6));
+            var options = FormatIndex == 0
+                ? $"{platform}  ·  {FormatOptions[FormatIndex]}  ·  {QualityOptions[QualityIndex]}"
+                : $"{platform}  ·  {FormatOptions[FormatIndex]}";
+            Queue.Add(new QueueItemViewModel(url, platform, ShortenUrl(url), options));
         }
     }
 

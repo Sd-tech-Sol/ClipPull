@@ -3,36 +3,31 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:converters="clr-namespace:ClipPull.Converters"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:vm="clr-namespace:ClipPull.ViewModels"
-    mc:Ignorable="d"
     Title="ClipPull"
-    Width="900"
-    Height="820"
-    MinWidth="720"
-    MinHeight="600"
+    Width="920"
+    Height="760"
+    MinWidth="760"
+    MinHeight="620"
+    AllowDrop="True"
     d:DataContext="{d:DesignInstance vm:MainViewModel, IsDesignTimeCreatable=True}"
     ExtendsContentIntoTitleBar="True"
+    PreviewDragLeave="OnPreviewDragLeave"
+    PreviewDragOver="OnPreviewDragOver"
+    Drop="OnDrop"
     WindowBackdropType="Mica"
     WindowCornerPreference="Round"
     WindowStartupLocation="CenterScreen"
-    AllowDrop="True"
-    PreviewDragOver="OnPreviewDragOver"
-    Drop="OnDrop">
+    mc:Ignorable="d">
 
     <ui:FluentWindow.Resources>
         <converters:StateToSymbolConverter x:Key="StateToSymbolConverter" />
         <converters:ActiveStateToVisibilityConverter x:Key="ActiveStateToVisibilityConverter" />
+        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
-
-        <SolidColorBrush x:Key="Accent0" Color="#4A78D0" />
-        <SolidColorBrush x:Key="Accent1" Color="#2E9E8F" />
-        <SolidColorBrush x:Key="Accent2" Color="#C98A2E" />
-        <SolidColorBrush x:Key="Accent3" Color="#B25C86" />
-        <SolidColorBrush x:Key="Accent4" Color="#5F9E4E" />
-        <SolidColorBrush x:Key="Accent5" Color="#6B6F9E" />
 
         <Style x:Key="QueueStateIconStyle" TargetType="ui:SymbolIcon">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -41,32 +36,14 @@
                 <DataTrigger Binding="{Binding State}" Value="Completed">
                     <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="AlreadyDownloaded">
+                    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                </DataTrigger>
                 <DataTrigger Binding="{Binding State}" Value="Failed">
                     <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding State}" Value="Cancelled">
                     <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="AccentDotStyle" TargetType="Ellipse">
-            <Setter Property="Fill" Value="{StaticResource Accent0}" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding AccentIndex}" Value="1">
-                    <Setter Property="Fill" Value="{StaticResource Accent1}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding AccentIndex}" Value="2">
-                    <Setter Property="Fill" Value="{StaticResource Accent2}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding AccentIndex}" Value="3">
-                    <Setter Property="Fill" Value="{StaticResource Accent3}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding AccentIndex}" Value="4">
-                    <Setter Property="Fill" Value="{StaticResource Accent4}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding AccentIndex}" Value="5">
-                    <Setter Property="Fill" Value="{StaticResource Accent5}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -84,417 +61,585 @@
             ShowMaximize="True"
             ShowMinimize="True">
             <ui:TitleBar.Icon>
-                <ui:SymbolIcon Symbol="ArrowDownload24" />
+                <ui:SymbolIcon Symbol="ArrowDownload24" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
-        <Grid Grid.Row="1" Margin="28,8,28,20">
+        <Grid Grid.Row="1" Margin="28,4,28,20">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!-- Header: subtitle + unobtrusive dependency chips + advanced-options entry point -->
+            <!-- Product header -->
             <Grid Grid.Row="0" Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock
-                    Grid.Column="0"
-                    Text="Facebook · TikTok · Instagram · YouTube · X · Vimeo · et plus"
-                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                    FontSize="13"
-                    VerticalAlignment="Center" />
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Télécharge tes médias" Style="{StaticResource ProductHeadingStyle}" />
+                    <TextBlock
+                        Text="Colle un lien, choisis un format, c’est parti."
+                        Style="{StaticResource SecondaryTextStyle}"
+                        Margin="0,2,0,0" />
+                </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock
-                        Text="{Binding YtDlpStatusText, StringFormat='yt-dlp : {0}'}"
-                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                        FontSize="11.5"
+                    <Border
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="9,4"
+                        Margin="0,0,8,0"
                         VerticalAlignment="Center"
-                        Margin="0,0,10,0"
-                        ToolTip="État du moteur yt-dlp" />
-                    <TextBlock
-                        Text="{Binding FfmpegStatusText, StringFormat='FFmpeg : {0}'}"
-                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                        FontSize="11.5"
-                        VerticalAlignment="Center"
-                        Margin="0,0,6,0"
-                        ToolTip="État de FFmpeg" />
+                        ToolTip="État des composants">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse
+                                Width="6"
+                                Height="6"
+                                Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                VerticalAlignment="Center"
+                                Margin="0,0,7,0" />
+                            <TextBlock Text="{Binding DependencySummaryText}" Style="{StaticResource CaptionTextStyle}" />
+                        </StackPanel>
+                    </Border>
+
                     <ui:Button
                         x:Name="AdvancedButton"
                         Appearance="Transparent"
-                        Icon="{ui:SymbolIcon Settings24}"
-                        ToolTip="Options avancées"
-                        Command="{Binding ToggleAdvancedCommand}" />
+                        AutomationProperties.Name="Paramètres"
+                        Command="{Binding ToggleAdvancedCommand}"
+                        Icon="{ui:SymbolIcon Settings20}"
+                        ToolTip="Paramètres" />
 
                     <ui:Flyout Placement="Left" IsOpen="{Binding IsAdvancedOpen}">
-                        <StackPanel Width="300">
-                            <ui:TextBlock Text="Options avancées" FontTypography="Subtitle" Margin="0,0,0,12" />
+                        <StackPanel Width="320">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                <Border
+                                    Width="34"
+                                    Height="34"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                    CornerRadius="8"
+                                    Margin="0,0,10,0">
+                                    <ui:SymbolIcon
+                                        Symbol="Settings20"
+                                        Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Paramètres" Style="{StaticResource SectionHeadingStyle}" />
+                                    <TextBlock Text="Options secondaires de ClipPull" Style="{StaticResource CaptionTextStyle}" />
+                                </StackPanel>
+                            </StackPanel>
 
-                            <ui:TextBlock Text="Historique local" FontTypography="BodyStrong" Margin="0,0,0,4" />
+                            <TextBlock Text="Historique" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
                             <ui:ToggleSwitch
-                                OnContent="Éviter les doublons avec l'historique"
-                                OffContent="Éviter les doublons avec l'historique"
+                                OnContent="Éviter les doublons"
+                                OffContent="Éviter les doublons"
                                 IsChecked="{Binding UseHistory}"
                                 Margin="0,0,0,4" />
-                            <ui:Button Content="Effacer l'historique" Appearance="Transparent" HorizontalAlignment="Left" Command="{Binding ClearHistoryCommand}" Margin="0,0,0,16" />
+                            <ui:Button
+                                Content="Effacer l’historique"
+                                Appearance="Transparent"
+                                HorizontalAlignment="Left"
+                                Icon="{ui:SymbolIcon HistoryDismiss20}"
+                                Command="{Binding ClearHistoryCommand}"
+                                Margin="0,0,0,16" />
 
-                            <ui:TextBlock Text="Playlists" FontTypography="BodyStrong" Margin="0,0,0,4" />
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                                <TextBlock Text="Limite par lien" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="Playlists" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="100" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Maximum par lien" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" />
                                 <ui:NumberBox
+                                    Grid.Column="1"
                                     Value="{Binding PlaylistLimit}"
                                     Minimum="1"
                                     Maximum="500"
-                                    IsEnabled="{Binding IsPlaylistLimitEnabled}"
-                                    Width="100" />
-                            </StackPanel>
+                                    IsEnabled="{Binding IsPlaylistLimitEnabled}" />
+                            </Grid>
 
-                            <ui:TextBlock Text="Session navigateur" FontTypography="BodyStrong" Margin="0,0,0,4" />
+                            <TextBlock Text="Session navigateur" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
                             <ui:ToggleSwitch
                                 OnContent="Utiliser ma session si nécessaire"
                                 OffContent="Utiliser ma session si nécessaire"
                                 IsChecked="{Binding UseBrowserCookies}"
-                                Margin="0,0,0,6" />
+                                Margin="0,0,0,8" />
                             <ComboBox
                                 ItemsSource="{Binding Browsers}"
                                 SelectedItem="{Binding SelectedBrowser}"
                                 IsEnabled="{Binding IsBrowserEnabled}"
-                                Width="150"
+                                Width="160"
                                 HorizontalAlignment="Left"
                                 Margin="0,0,0,16" />
 
-                            <ui:TextBlock Text="Dépendances" FontTypography="BodyStrong" Margin="0,0,0,4" />
-                            <TextBlock Text="{Binding YtDlpStatusText, StringFormat='Moteur yt-dlp : {0}'}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <TextBlock Text="{Binding FfmpegStatusText, StringFormat='FFmpeg : {0}'}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,14" />
+                            <TextBlock Text="Composants" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="yt-dlp" Style="{StaticResource SecondaryTextStyle}" />
+                                <TextBlock Grid.Column="1" Text="{Binding YtDlpStatusText}" Style="{StaticResource CaptionTextStyle}" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="FFmpeg" Style="{StaticResource SecondaryTextStyle}" />
+                                <TextBlock Grid.Column="1" Text="{Binding FfmpegStatusText}" Style="{StaticResource CaptionTextStyle}" />
+                            </Grid>
                         </StackPanel>
                     </ui:Flyout>
                 </StackPanel>
             </Grid>
 
-            <!-- URL input -->
-            <ui:CardControl Grid.Row="1" Margin="0,0,0,14" Padding="16">
-                <ui:CardControl.Header>
-                    <Grid>
+            <!-- Hero drop / paste surface -->
+            <Border
+                x:Name="DropZoneBorder"
+                Grid.Row="1"
+                Style="{StaticResource WorkingSurfaceStyle}"
+                Padding="20"
+                Margin="0,0,0,16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <ui:TextBlock
+
+                        <Border
                             Grid.Column="0"
-                            Text="Colle ou dépose tes liens"
-                            FontTypography="BodyStrong" />
-                        <TextBlock
-                            Grid.Column="1"
-                            Text="{Binding LinkCount, StringFormat='{}{0} lien(s)'}"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                            FontSize="12.5"
-                            VerticalAlignment="Center" />
-                    </Grid>
-                </ui:CardControl.Header>
-                <ui:CardControl.Content>
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
+                            Width="44"
+                            Height="44"
+                            CornerRadius="10"
+                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            Margin="0,0,12,0">
+                            <ui:SymbolIcon
+                                Symbol="ClipboardPaste24"
+                                FontSize="22"
+                                Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
 
-                        <ui:TextBox
-                            Grid.Row="0"
-                            x:Name="UrlsBox"
-                            Text="{Binding UrlsText, UpdateSourceTrigger=PropertyChanged}"
-                            AcceptsReturn="True"
-                            TextWrapping="Wrap"
-                            VerticalContentAlignment="Top"
-                            VerticalScrollBarVisibility="Auto"
-                            Height="96"
-                            PlaceholderText="Colle un ou plusieurs liens, un par ligne, ou glisse un fichier .txt ici..."
-                            PlaceholderEnabled="True"
-                            Icon="{ui:SymbolIcon CloudArrowUp24}" />
-
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
-                            <ui:Button
-                                Content="Coller"
-                                Icon="{ui:SymbolIcon ClipboardPaste20}"
-                                Command="{Binding PasteCommand}"
-                                IsEnabled="{Binding IsNotBusy}"
-                                Margin="0,0,8,0" />
-                            <ui:Button
-                                Content="Importer .txt"
-                                Icon="{ui:SymbolIcon DocumentArrowUp20}"
-                                Command="{Binding ImportTextFileCommand}"
-                                IsEnabled="{Binding IsNotBusy}"
-                                Margin="0,0,8,0" />
-                            <ui:Button
-                                Content="Aperçu du 1er lien"
-                                Icon="{ui:SymbolIcon Eye20}"
-                                Command="{Binding PreviewFirstCommand}"
-                                IsEnabled="{Binding IsNotBusy}"
-                                Margin="0,0,8,0" />
-                            <ui:Button
-                                Content="Effacer"
-                                Appearance="Transparent"
-                                Icon="{ui:SymbolIcon Delete20}"
-                                Command="{Binding ClearCommand}"
-                                IsEnabled="{Binding IsNotBusy}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock
+                                Text="Dépose tes liens ici"
+                                Style="{StaticResource HeroHeadingStyle}"
+                                Visibility="{Binding HasLinks, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                            <TextBlock
+                                Text="ou colle une ou plusieurs URL ci-dessous"
+                                Style="{StaticResource SecondaryTextStyle}"
+                                Visibility="{Binding HasLinks, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                            <TextBlock
+                                Text="{Binding LinkSummaryText}"
+                                Style="{StaticResource HeroHeadingStyle}"
+                                Visibility="{Binding HasLinks, Converter={StaticResource BoolToVisibilityConverter}}" />
+                            <TextBlock
+                                Text="Vérifie les liens, puis choisis ton format."
+                                Style="{StaticResource SecondaryTextStyle}"
+                                Visibility="{Binding HasLinks, Converter={StaticResource BoolToVisibilityConverter}}" />
                         </StackPanel>
-                    </Grid>
-                </ui:CardControl.Content>
-            </ui:CardControl>
 
-            <!-- Preview (only shown once a preview has been fetched) -->
-            <Border
-                Grid.Row="2"
-                Margin="0,0,0,14"
-                Padding="14"
-                CornerRadius="8"
-                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                Visibility="{Binding IsPreviewVisible, Converter={StaticResource BoolToVisibilityConverter}, FallbackValue=Collapsed}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                        <ui:Button
+                            Grid.Column="2"
+                            Appearance="Transparent"
+                            AutomationProperties.Name="Effacer les liens"
+                            Command="{Binding ClearCommand}"
+                            Icon="{ui:SymbolIcon Delete20}"
+                            ToolTip="Effacer"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding HasLinks, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    </Grid>
+
+                    <ui:TextBox
+                        x:Name="UrlsBox"
+                        Grid.Row="1"
+                        Text="{Binding UrlsText, UpdateSourceTrigger=PropertyChanged}"
+                        AcceptsReturn="True"
+                        TextWrapping="Wrap"
+                        VerticalContentAlignment="Top"
+                        VerticalScrollBarVisibility="Auto"
+                        PlaceholderText="https://..."
+                        PlaceholderEnabled="True"
+                        Margin="0,14,0,0"
+                        AutomationProperties.Name="Liens à télécharger">
+                        <ui:TextBox.Style>
+                            <Style TargetType="ui:TextBox" BasedOn="{StaticResource {x:Type ui:TextBox}}">
+                                <Setter Property="Height" Value="42" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasLinks}" Value="True">
+                                        <Setter Property="Height" Value="76" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:TextBox.Style>
+                    </ui:TextBox>
+
+                    <Grid Grid.Row="2" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:Button
+                            Grid.Column="0"
+                            Content="Coller"
+                            Icon="{ui:SymbolIcon ClipboardPaste20}"
+                            Command="{Binding PasteCommand}"
+                            IsEnabled="{Binding IsNotBusy}"
+                            Margin="0,0,8,0" />
+                        <ui:Button
+                            Grid.Column="1"
+                            Content="Importer un .txt"
+                            Appearance="Transparent"
+                            Icon="{ui:SymbolIcon DocumentArrowUp20}"
+                            Command="{Binding ImportTextFileCommand}"
+                            IsEnabled="{Binding IsNotBusy}" />
+                        <ui:Button
+                            Grid.Column="3"
+                            Content="Voir l’aperçu"
+                            Appearance="Transparent"
+                            Icon="{ui:SymbolIcon Eye20}"
+                            Command="{Binding PreviewFirstCommand}"
+                            IsEnabled="{Binding IsNotBusy}"
+                            Visibility="{Binding HasLinks, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    </Grid>
+
                     <Border
-                        Grid.Column="0"
-                        Width="96"
-                        Height="64"
-                        Margin="0,0,14,0"
-                        CornerRadius="6"
-                        Background="{DynamicResource ControlFillColorDefaultBrush}"
-                        ClipToBounds="True">
-                        <Image Source="{Binding PreviewThumbnail}" Stretch="UniformToFill" />
+                        Grid.Row="3"
+                        Margin="0,14,0,0"
+                        Padding="10"
+                        CornerRadius="8"
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        Visibility="{Binding IsPreviewVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border
+                                Grid.Column="0"
+                                Width="96"
+                                Height="54"
+                                Margin="0,0,12,0"
+                                CornerRadius="6"
+                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                ClipToBounds="True">
+                                <Image Source="{Binding PreviewThumbnail}" Stretch="UniformToFill" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock
+                                    Text="{Binding PreviewTitle}"
+                                    Style="{StaticResource SectionHeadingStyle}"
+                                    TextWrapping="Wrap"
+                                    TextTrimming="CharacterEllipsis"
+                                    MaxHeight="40" />
+                                <TextBlock Text="{Binding PreviewMeta}" Style="{StaticResource CaptionTextStyle}" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </Grid>
                     </Border>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <ui:TextBlock Text="{Binding PreviewTitle}" FontTypography="BodyStrong" TextWrapping="Wrap" />
-                        <TextBlock
-                            Text="{Binding PreviewMeta}"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                            Margin="0,4,0,0" />
-                    </StackPanel>
                 </Grid>
             </Border>
 
-            <!-- Download options -->
-            <ui:CardControl Grid.Row="3" Margin="0,0,0,14" Padding="16">
-                <ui:CardControl.Header>
-                    <ui:TextBlock Text="Options de téléchargement" FontTypography="BodyStrong" />
-                </ui:CardControl.Header>
-                <ui:CardControl.Content>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Format" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <ComboBox
-                            Width="130"
-                            ItemsSource="{Binding FormatOptions}"
-                            SelectedIndex="{Binding FormatIndex}"
-                            IsEnabled="{Binding IsNotBusy}"
-                            Margin="0,0,20,0" />
+            <!-- Compact selection and primary action -->
+            <Grid Grid.Row="2" Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="Qualité" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <ComboBox
-                            Width="150"
-                            ItemsSource="{Binding QualityOptions}"
-                            SelectedIndex="{Binding QualityIndex}"
-                            IsEnabled="{Binding IsQualityEnabled}"
-                            Margin="0,0,20,0" />
-
-                        <ui:ToggleSwitch
-                            OnContent="Playlists autorisées"
-                            OffContent="Playlists autorisées"
-                            IsChecked="{Binding AllowPlaylists}"
-                            IsEnabled="{Binding IsNotBusy}" />
-                    </StackPanel>
-                </ui:CardControl.Content>
-            </ui:CardControl>
-
-            <!-- Queue -->
-            <ui:CardControl Grid.Row="4" Margin="0,0,0,14" Padding="0">
-                <ui:CardControl.Content>
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-
-                        <ui:TextBlock
-                            Grid.Row="0"
-                            Text="File de téléchargement"
-                            FontTypography="BodyStrong"
-                            Margin="16,14,16,4" />
-
-                        <StackPanel
-                            Grid.Row="1"
-                            VerticalAlignment="Center"
-                            HorizontalAlignment="Center"
-                            Visibility="{Binding IsQueueEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <ui:SymbolIcon
-                                Symbol="ArrowDownload24"
-                                FontSize="28"
-                                HorizontalAlignment="Center"
-                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                            <TextBlock
-                                Text="Rien à télécharger pour l'instant"
-                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                Margin="0,8,0,0" />
+                <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                    <TextBlock Text="Format" Style="{StaticResource CaptionTextStyle}" Margin="2,0,0,5" />
+                    <Border
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton
+                                Content="Vidéo"
+                                GroupName="Format"
+                                IsChecked="{Binding IsVideoSelected}"
+                                IsEnabled="{Binding IsNotBusy}"
+                                Style="{StaticResource SegmentRadioStyle}" />
+                            <RadioButton
+                                Content="M4A"
+                                GroupName="Format"
+                                IsChecked="{Binding IsM4aSelected}"
+                                IsEnabled="{Binding IsNotBusy}"
+                                Style="{StaticResource SegmentRadioStyle}" />
+                            <RadioButton
+                                Content="MP3"
+                                GroupName="Format"
+                                IsChecked="{Binding IsMp3Selected}"
+                                IsEnabled="{Binding IsNotBusy}"
+                                Style="{StaticResource SegmentRadioStyle}" />
                         </StackPanel>
+                    </Border>
+                </StackPanel>
 
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl x:Name="QueueItemsControl" ItemsSource="{Binding Queue}" Margin="8,0,8,10">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type vm:QueueItemViewModel}">
-                                        <Border
-                                            Padding="10,9"
-                                            CornerRadius="6"
-                                            Margin="0,2"
-                                            Background="Transparent">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <Ellipse
-                                                    Grid.Column="0"
-                                                    Width="8"
-                                                    Height="8"
-                                                    Margin="2,0,10,0"
-                                                    VerticalAlignment="Center"
-                                                    Style="{StaticResource AccentDotStyle}" />
-
-                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0" Width="90">
-                                                    <ui:TextBlock Text="{Binding Platform}" FontTypography="Caption" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                                    <TextBlock
-                                                        Text="{Binding DisplayText}"
-                                                        TextTrimming="CharacterEllipsis"
-                                                        ToolTip="{Binding DetailText}" />
-                                                    <ProgressBar
-                                                        Height="3"
-                                                        Margin="0,4,0,0"
-                                                        Minimum="0"
-                                                        Maximum="100"
-                                                        Value="{Binding Progress, Mode=OneWay}"
-                                                        Visibility="{Binding State, Converter={StaticResource ActiveStateToVisibilityConverter}, FallbackValue=Collapsed}" />
-                                                </StackPanel>
-
-                                                <TextBlock
-                                                    Grid.Column="3"
-                                                    Text="{Binding StatusText}"
-                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                    VerticalAlignment="Center"
-                                                    Margin="0,0,10,0" />
-
-                                                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <ui:SymbolIcon Style="{StaticResource QueueStateIconStyle}" Margin="0,0,4,0" />
-                                                    <ui:Button
-                                                        Appearance="Transparent"
-                                                        Icon="{ui:SymbolIcon ArrowClockwise16}"
-                                                        ToolTip="Réessayer"
-                                                        Padding="4"
-                                                        Command="{Binding DataContext.RetryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}"
-                                                        Visibility="{Binding CanRetry, Converter={StaticResource BoolToVisibilityConverter}, FallbackValue=Collapsed}" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Grid>
-                </ui:CardControl.Content>
-            </ui:CardControl>
-
-            <!-- Output folder -->
-            <Grid Grid.Row="5" Margin="0,0,0,14">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock
-                    Grid.Column="0"
-                    Text="Enregistrer dans"
-                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                    VerticalAlignment="Center"
-                    Margin="0,0,10,0" />
-                <TextBlock
+                <StackPanel
                     Grid.Column="1"
-                    Text="{Binding OutputFolder}"
-                    VerticalAlignment="Center"
-                    TextTrimming="CharacterEllipsis" />
-                <ui:Button
+                    Margin="0,0,16,0"
+                    Visibility="{Binding IsVideoSelected, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock Text="Qualité" Style="{StaticResource CaptionTextStyle}" Margin="2,0,0,5" />
+                    <ComboBox
+                        Width="142"
+                        Height="36"
+                        ItemsSource="{Binding QualityOptions}"
+                        SelectedIndex="{Binding QualityIndex}"
+                        IsEnabled="{Binding IsQualityEnabled}"
+                        ToolTip="Auto rapide nécessite une source vidéo prête à l’emploi." />
+                </StackPanel>
+
+                <CheckBox
                     Grid.Column="2"
-                    Content="Changer..."
-                    Appearance="Transparent"
-                    Command="{Binding ChooseFolderCommand}"
-                    IsEnabled="{Binding IsNotBusy}" />
-            </Grid>
-
-            <!-- Primary actions -->
-            <Grid Grid.Row="6" Margin="0,0,0,10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+                    Content="Playlist"
+                    IsChecked="{Binding AllowPlaylists}"
+                    IsEnabled="{Binding IsNotBusy}"
+                    VerticalAlignment="Bottom"
+                    Height="36"
+                    Padding="0,7"
+                    ToolTip="Autoriser le téléchargement de playlists" />
 
                 <ui:Button
-                    Grid.Column="0"
+                    Grid.Column="4"
                     Content="{Binding PrimaryActionLabel}"
                     Appearance="Primary"
-                    FontSize="14.5"
-                    Padding="0,10"
-                    Command="{Binding DownloadOrCancelCommand}">
+                    FontSize="14"
+                    FontWeight="SemiBold"
+                    MinWidth="178"
+                    Height="42"
+                    VerticalAlignment="Bottom"
+                    Command="{Binding DownloadOrCancelCommand}"
+                    IsEnabled="{Binding CanUsePrimaryAction}">
                     <ui:Button.Icon>
                         <ui:SymbolIcon Symbol="{Binding PrimaryActionIcon}" />
                     </ui:Button.Icon>
                 </ui:Button>
-
-                <ui:Button
-                    Grid.Column="1"
-                    Content="Réessayer les échecs"
-                    Margin="10,0,0,0"
-                    Command="{Binding RetryFailedCommand}"
-                    Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibilityConverter}, FallbackValue=Collapsed}" />
-
-                <ui:Button
-                    Grid.Column="2"
-                    Content="Copier erreurs"
-                    Appearance="Transparent"
-                    Margin="8,0,0,0"
-                    Command="{Binding CopyErrorsCommand}"
-                    Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibilityConverter}, FallbackValue=Collapsed}" />
             </Grid>
 
-            <ui:Button
-                Grid.Row="6"
-                HorizontalAlignment="Right"
-                Margin="0,44,0,0"
-                Content="Ouvrir le dossier"
-                Appearance="Transparent"
-                Icon="{ui:SymbolIcon FolderOpen20}"
-                Command="{Binding OpenFolderCommand}" />
+            <!-- Download queue -->
+            <Border Grid.Row="3" Style="{StaticResource WorkingSurfaceStyle}" MinHeight="150" Margin="0,0,0,14" ClipToBounds="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-            <!-- Status -->
+                    <Grid Grid.Row="0" Margin="16,12,12,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <TextBlock Text="Téléchargements" Style="{StaticResource SectionHeadingStyle}" />
+                            <TextBlock
+                                Text="{Binding QueueSummaryText}"
+                                Style="{StaticResource CaptionTextStyle}"
+                                VerticalAlignment="Center"
+                                Margin="10,0,0,0" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <ui:Button
+                                Content="Réessayer"
+                                Appearance="Transparent"
+                                Icon="{ui:SymbolIcon ArrowClockwise16}"
+                                Command="{Binding RetryFailedCommand}"
+                                Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibilityConverter}}" />
+                            <ui:Button
+                                Appearance="Transparent"
+                                AutomationProperties.Name="Copier les erreurs"
+                                Icon="{ui:SymbolIcon Copy20}"
+                                ToolTip="Copier les erreurs"
+                                Command="{Binding CopyErrorsCommand}"
+                                Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel
+                        Grid.Row="1"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,12"
+                        Visibility="{Binding IsQueueEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Border
+                            Width="44"
+                            Height="44"
+                            CornerRadius="22"
+                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            HorizontalAlignment="Center">
+                            <ui:SymbolIcon
+                                Symbol="ArrowDownload24"
+                                FontSize="22"
+                                Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock
+                            Text="Aucun téléchargement"
+                            Style="{StaticResource SectionHeadingStyle}"
+                            HorizontalAlignment="Center"
+                            Margin="0,8,0,0" />
+                        <TextBlock
+                            Text="Colle un lien ci-dessus pour commencer."
+                            Style="{StaticResource CaptionTextStyle}"
+                            HorizontalAlignment="Center"
+                            Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <ScrollViewer
+                        Grid.Row="1"
+                        VerticalScrollBarVisibility="Auto"
+                        Visibility="{Binding IsQueueEmpty, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                        <ItemsControl x:Name="QueueItemsControl" ItemsSource="{Binding Queue}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:QueueItemViewModel}">
+                                    <Border Style="{StaticResource QueueRowStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <Border
+                                                Grid.Column="0"
+                                                Width="38"
+                                                Height="38"
+                                                CornerRadius="8"
+                                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                                Margin="0,0,12,0">
+                                                <ui:SymbolIcon
+                                                    Symbol="VideoClip20"
+                                                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center" />
+                                            </Border>
+
+                                            <Grid Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <TextBlock
+                                                    Grid.Row="0"
+                                                    Text="{Binding DisplayText}"
+                                                    Style="{StaticResource BodyTextStyle}"
+                                                    FontWeight="SemiBold"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    ToolTip="{Binding DetailText}" />
+                                                <TextBlock
+                                                    Grid.Row="1"
+                                                    Text="{Binding OptionsText}"
+                                                    Style="{StaticResource CaptionTextStyle}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <ProgressBar
+                                                    Grid.Row="2"
+                                                    Height="3"
+                                                    Margin="0,6,0,0"
+                                                    Minimum="0"
+                                                    Maximum="100"
+                                                    Value="{Binding Progress, Mode=OneWay}"
+                                                    Visibility="{Binding State, Converter={StaticResource ActiveStateToVisibilityConverter}}" />
+                                            </Grid>
+
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                <ui:SymbolIcon Style="{StaticResource QueueStateIconStyle}" Margin="0,0,6,0" />
+                                                <TextBlock
+                                                    Text="{Binding StatusDisplayText}"
+                                                    Style="{StaticResource CaptionTextStyle}"
+                                                    MinWidth="92"
+                                                    TextAlignment="Right"
+                                                    VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <ui:Button
+                                                Grid.Column="3"
+                                                Appearance="Transparent"
+                                                AutomationProperties.Name="Réessayer ce téléchargement"
+                                                Icon="{ui:SymbolIcon ArrowClockwise16}"
+                                                ToolTip="Réessayer"
+                                                Padding="5"
+                                                Command="{Binding DataContext.RetryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Visibility="{Binding CanRetry, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- Secondary output location -->
+            <Grid Grid.Row="4" Margin="2,0,2,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon
+                    Grid.Column="0"
+                    Symbol="FolderOpen20"
+                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                    VerticalAlignment="Center"
+                    Margin="0,0,10,0" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="Enregistrer dans" Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock
+                        Text="{Binding OutputFolderDisplay}"
+                        Style="{StaticResource BodyTextStyle}"
+                        TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <ui:Button
+                    Grid.Column="2"
+                    Content="Modifier"
+                    Appearance="Transparent"
+                    Command="{Binding ChooseFolderCommand}"
+                    IsEnabled="{Binding IsNotBusy}"
+                    Margin="8,0,0,0" />
+                <ui:Button
+                    Grid.Column="3"
+                    Content="Ouvrir"
+                    Appearance="Transparent"
+                    Icon="{ui:SymbolIcon Open20}"
+                    Command="{Binding OpenFolderCommand}"
+                    Margin="4,0,0,0" />
+            </Grid>
+
             <ui:InfoBar
-                Grid.Row="7"
+                Grid.Row="5"
                 Title="{Binding InfoBarTitle}"
                 Message="{Binding InfoBarMessage}"
                 Severity="{Binding InfoBarSeverity}"

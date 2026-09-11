@@ -3,12 +3,126 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
+    <!-- ClipPull source palette. Semantic brushes below are remapped at runtime
+         when the user chooses Dark, System, or Light. Dark is the signature. -->
+    <Color x:Key="ClipPullDarkBackgroundColor">#F708122F</Color>
+    <Color x:Key="ClipPullDarkChromeColor">#FA0A1435</Color>
+    <Color x:Key="ClipPullDarkSurfaceColor">#F2111D45</Color>
+    <Color x:Key="ClipPullDarkSurfaceSecondaryColor">#F5152454</Color>
+    <Color x:Key="ClipPullDarkSurfaceElevatedColor">#FF19295D</Color>
+    <Color x:Key="ClipPullDarkSurfaceHoverColor">#FF1C3168</Color>
+    <Color x:Key="ClipPullDarkDropZoneColor">#F0132150</Color>
+    <Color x:Key="ClipPullDarkDropZoneActiveColor">#FF112D62</Color>
+    <Color x:Key="ClipPullDarkAccentColor">#FF2878FF</Color>
+    <Color x:Key="ClipPullDarkAccentHoverColor">#FF338DFF</Color>
+    <Color x:Key="ClipPullDarkAccentPressedColor">#FF236AE2</Color>
+    <Color x:Key="ClipPullDarkCyanColor">#FF27D5FF</Color>
+    <Color x:Key="ClipPullDarkVioletColor">#FF675CFF</Color>
+    <Color x:Key="ClipPullDarkTextPrimaryColor">#FFF5F7FF</Color>
+    <Color x:Key="ClipPullDarkTextSecondaryColor">#FFB8C3E1</Color>
+    <Color x:Key="ClipPullDarkTextTertiaryColor">#FF7F8CAF</Color>
+    <Color x:Key="ClipPullDarkTextDisabledColor">#FF65718F</Color>
+    <Color x:Key="ClipPullDarkBorderColor">#FF30477C</Color>
+    <Color x:Key="ClipPullDarkBorderStrongColor">#FF4C62A0</Color>
+    <Color x:Key="ClipPullDarkDropBorderColor">#FF5360A9</Color>
+    <Color x:Key="ClipPullDarkDividerColor">#663C4F82</Color>
+    <Color x:Key="ClipPullDarkSuccessColor">#FF39D6C3</Color>
+    <Color x:Key="ClipPullDarkWarningColor">#FFFFBF69</Color>
+    <Color x:Key="ClipPullDarkErrorColor">#FFFF7184</Color>
+    <Color x:Key="ClipPullDarkOnAccentColor">#FFFFFFFF</Color>
+
+    <Color x:Key="ClipPullLightBackgroundColor">#FFF3F6FF</Color>
+    <Color x:Key="ClipPullLightChromeColor">#FFF7F9FF</Color>
+    <Color x:Key="ClipPullLightSurfaceColor">#FFFFFFFF</Color>
+    <Color x:Key="ClipPullLightSurfaceSecondaryColor">#FFF0F4FF</Color>
+    <Color x:Key="ClipPullLightSurfaceElevatedColor">#FFFFFFFF</Color>
+    <Color x:Key="ClipPullLightSurfaceHoverColor">#FFE3EAFC</Color>
+    <Color x:Key="ClipPullLightDropZoneColor">#FFF8FAFF</Color>
+    <Color x:Key="ClipPullLightDropZoneActiveColor">#FFE7F4FF</Color>
+    <Color x:Key="ClipPullLightAccentColor">#FF1768EB</Color>
+    <Color x:Key="ClipPullLightAccentHoverColor">#FF0D5DDC</Color>
+    <Color x:Key="ClipPullLightAccentPressedColor">#FF084EBE</Color>
+    <Color x:Key="ClipPullLightCyanColor">#FF007D99</Color>
+    <Color x:Key="ClipPullLightVioletColor">#FF5D50ED</Color>
+    <Color x:Key="ClipPullLightTextPrimaryColor">#FF101A3A</Color>
+    <Color x:Key="ClipPullLightTextSecondaryColor">#FF435276</Color>
+    <Color x:Key="ClipPullLightTextTertiaryColor">#FF64708D</Color>
+    <Color x:Key="ClipPullLightTextDisabledColor">#FF8B94AA</Color>
+    <Color x:Key="ClipPullLightBorderColor">#FFC9D3EC</Color>
+    <Color x:Key="ClipPullLightBorderStrongColor">#FFAAB9DE</Color>
+    <Color x:Key="ClipPullLightDropBorderColor">#FF8E9DE0</Color>
+    <Color x:Key="ClipPullLightDividerColor">#99D5DDF0</Color>
+    <Color x:Key="ClipPullLightSuccessColor">#FF087E70</Color>
+    <Color x:Key="ClipPullLightWarningColor">#FF9A5700</Color>
+    <Color x:Key="ClipPullLightErrorColor">#FFB4233A</Color>
+    <Color x:Key="ClipPullLightOnAccentColor">#FFFFFFFF</Color>
+
+    <!-- Semantic palette (initial/default state: Dark). -->
+    <SolidColorBrush x:Key="ClipPullBackgroundBrush" Color="{StaticResource ClipPullDarkBackgroundColor}" />
+    <SolidColorBrush x:Key="ClipPullChromeBrush" Color="{StaticResource ClipPullDarkChromeColor}" />
+    <SolidColorBrush x:Key="ClipPullSurfaceBrush" Color="{StaticResource ClipPullDarkSurfaceColor}" />
+    <SolidColorBrush x:Key="ClipPullSurfaceSecondaryBrush" Color="{StaticResource ClipPullDarkSurfaceSecondaryColor}" />
+    <SolidColorBrush x:Key="ClipPullSurfaceElevatedBrush" Color="{StaticResource ClipPullDarkSurfaceElevatedColor}" />
+    <SolidColorBrush x:Key="ClipPullSurfaceHoverBrush" Color="{StaticResource ClipPullDarkSurfaceHoverColor}" />
+    <SolidColorBrush x:Key="ClipPullDropZoneBrush" Color="{StaticResource ClipPullDarkDropZoneColor}" />
+    <SolidColorBrush x:Key="ClipPullDropZoneActiveBrush" Color="{StaticResource ClipPullDarkDropZoneActiveColor}" />
+    <SolidColorBrush x:Key="ClipPullAccentBrush" Color="{StaticResource ClipPullDarkAccentColor}" />
+    <SolidColorBrush x:Key="ClipPullAccentHoverBrush" Color="{StaticResource ClipPullDarkAccentHoverColor}" />
+    <SolidColorBrush x:Key="ClipPullAccentPressedBrush" Color="{StaticResource ClipPullDarkAccentPressedColor}" />
+    <SolidColorBrush x:Key="ClipPullCyanBrush" Color="{StaticResource ClipPullDarkCyanColor}" />
+    <SolidColorBrush x:Key="ClipPullVioletBrush" Color="{StaticResource ClipPullDarkVioletColor}" />
+    <SolidColorBrush x:Key="ClipPullTextPrimaryBrush" Color="{StaticResource ClipPullDarkTextPrimaryColor}" />
+    <SolidColorBrush x:Key="ClipPullTextSecondaryBrush" Color="{StaticResource ClipPullDarkTextSecondaryColor}" />
+    <SolidColorBrush x:Key="ClipPullTextTertiaryBrush" Color="{StaticResource ClipPullDarkTextTertiaryColor}" />
+    <SolidColorBrush x:Key="ClipPullTextDisabledBrush" Color="{StaticResource ClipPullDarkTextDisabledColor}" />
+    <SolidColorBrush x:Key="ClipPullBorderBrush" Color="{StaticResource ClipPullDarkBorderColor}" />
+    <SolidColorBrush x:Key="ClipPullBorderStrongBrush" Color="{StaticResource ClipPullDarkBorderStrongColor}" />
+    <SolidColorBrush x:Key="ClipPullDropBorderBrush" Color="{StaticResource ClipPullDarkDropBorderColor}" />
+    <SolidColorBrush x:Key="ClipPullDividerBrush" Color="{StaticResource ClipPullDarkDividerColor}" />
+    <SolidColorBrush x:Key="ClipPullSuccessBrush" Color="{StaticResource ClipPullDarkSuccessColor}" />
+    <SolidColorBrush x:Key="ClipPullWarningBrush" Color="{StaticResource ClipPullDarkWarningColor}" />
+    <SolidColorBrush x:Key="ClipPullErrorBrush" Color="{StaticResource ClipPullDarkErrorColor}" />
+    <SolidColorBrush x:Key="ClipPullOnAccentBrush" Color="{StaticResource ClipPullDarkOnAccentColor}" />
+
+    <!-- WPF UI resource redirects keep stock controls in the ClipPull color language. -->
+    <StaticResource x:Key="ApplicationBackgroundBrush" ResourceKey="ClipPullBackgroundBrush" />
+    <StaticResource x:Key="LayerFillColorDefaultBrush" ResourceKey="ClipPullBackgroundBrush" />
+    <StaticResource x:Key="LayerOnAcrylicFillColorDefaultBrush" ResourceKey="ClipPullSurfaceElevatedBrush" />
+    <StaticResource x:Key="CardBackgroundFillColorDefaultBrush" ResourceKey="ClipPullSurfaceBrush" />
+    <StaticResource x:Key="CardBackgroundFillColorSecondaryBrush" ResourceKey="ClipPullSurfaceSecondaryBrush" />
+    <StaticResource x:Key="ControlFillColorDefaultBrush" ResourceKey="ClipPullSurfaceSecondaryBrush" />
+    <StaticResource x:Key="ControlFillColorSecondaryBrush" ResourceKey="ClipPullSurfaceElevatedBrush" />
+    <StaticResource x:Key="ControlFillColorTertiaryBrush" ResourceKey="ClipPullSurfaceHoverBrush" />
+    <StaticResource x:Key="ControlFillColorDisabledBrush" ResourceKey="ClipPullSurfaceBrush" />
+    <StaticResource x:Key="SubtleFillColorTransparentBrush" ResourceKey="ClipPullSurfaceBrush" />
+    <StaticResource x:Key="SubtleFillColorSecondaryBrush" ResourceKey="ClipPullSurfaceHoverBrush" />
+    <StaticResource x:Key="SubtleFillColorTertiaryBrush" ResourceKey="ClipPullSurfaceSecondaryBrush" />
+    <StaticResource x:Key="ControlStrokeColorDefaultBrush" ResourceKey="ClipPullBorderBrush" />
+    <StaticResource x:Key="ControlStrokeColorSecondaryBrush" ResourceKey="ClipPullBorderStrongBrush" />
+    <StaticResource x:Key="CardStrokeColorDefaultBrush" ResourceKey="ClipPullBorderBrush" />
+    <StaticResource x:Key="DividerStrokeColorDefaultBrush" ResourceKey="ClipPullDividerBrush" />
+    <StaticResource x:Key="FocusStrokeColorOuterBrush" ResourceKey="ClipPullCyanBrush" />
+    <StaticResource x:Key="FocusStrokeColorInnerBrush" ResourceKey="ClipPullBackgroundBrush" />
+    <StaticResource x:Key="TextFillColorPrimaryBrush" ResourceKey="ClipPullTextPrimaryBrush" />
+    <StaticResource x:Key="TextFillColorSecondaryBrush" ResourceKey="ClipPullTextSecondaryBrush" />
+    <StaticResource x:Key="TextFillColorTertiaryBrush" ResourceKey="ClipPullTextTertiaryBrush" />
+    <StaticResource x:Key="TextFillColorDisabledBrush" ResourceKey="ClipPullTextDisabledBrush" />
+    <StaticResource x:Key="AccentFillColorDefaultBrush" ResourceKey="ClipPullAccentBrush" />
+    <StaticResource x:Key="AccentFillColorSecondaryBrush" ResourceKey="ClipPullAccentHoverBrush" />
+    <StaticResource x:Key="AccentFillColorTertiaryBrush" ResourceKey="ClipPullAccentPressedBrush" />
+    <StaticResource x:Key="AccentTextFillColorPrimaryBrush" ResourceKey="ClipPullCyanBrush" />
+    <StaticResource x:Key="AccentTextFillColorSecondaryBrush" ResourceKey="ClipPullAccentHoverBrush" />
+    <StaticResource x:Key="TextOnAccentFillColorPrimaryBrush" ResourceKey="ClipPullOnAccentBrush" />
+    <StaticResource x:Key="SystemFillColorSuccessBrush" ResourceKey="ClipPullSuccessBrush" />
+    <StaticResource x:Key="SystemFillColorCautionBrush" ResourceKey="ClipPullWarningBrush" />
+    <StaticResource x:Key="SystemFillColorCriticalBrush" ResourceKey="ClipPullErrorBrush" />
+
     <Style x:Key="ProductHeadingStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
         <Setter Property="FontSize" Value="26" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="LineHeight" Value="34" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource ClipPullTextPrimaryBrush}" />
     </Style>
 
     <Style x:Key="HeroHeadingStyle" TargetType="TextBlock">
@@ -16,7 +130,7 @@
         <Setter Property="FontSize" Value="20" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="LineHeight" Value="28" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource ClipPullTextPrimaryBrush}" />
     </Style>
 
     <Style x:Key="SectionHeadingStyle" TargetType="TextBlock">
@@ -24,38 +138,50 @@
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="LineHeight" Value="20" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource ClipPullTextPrimaryBrush}" />
     </Style>
 
     <Style x:Key="BodyTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="LineHeight" Value="20" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource ClipPullTextPrimaryBrush}" />
     </Style>
 
     <Style x:Key="SecondaryTextStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextStyle}">
         <Setter Property="FontSize" Value="13" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource ClipPullTextSecondaryBrush}" />
     </Style>
 
     <Style x:Key="CaptionTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="LineHeight" Value="16" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource ClipPullTextTertiaryBrush}" />
     </Style>
 
     <Style x:Key="WorkingSurfaceStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ClipPullSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ClipPullBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="12" />
     </Style>
 
+    <Style x:Key="DropZoneSurfaceStyle" TargetType="Border" BasedOn="{StaticResource WorkingSurfaceStyle}">
+        <Setter Property="Background" Value="{DynamicResource ClipPullDropZoneBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ClipPullDropBorderBrush}" />
+    </Style>
+
+    <Style x:Key="SegmentContainerStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource ClipPullSurfaceSecondaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ClipPullBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
     <Style x:Key="SegmentRadioStyle" TargetType="RadioButton">
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource ClipPullTextSecondaryBrush}" />
         <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -86,22 +212,23 @@
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsChecked" Value="False" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="SegmentSurface" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            <Setter TargetName="SegmentSurface" Property="Background" Value="{DynamicResource ClipPullSurfaceHoverBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource ClipPullTextPrimaryBrush}" />
                         </MultiTrigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="SegmentSurface" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                            <Setter TargetName="SegmentSurface" Property="Background" Value="{DynamicResource ClipPullSurfaceElevatedBrush}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="SegmentSurface" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                            <Setter TargetName="SegmentSurface" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                            <Setter TargetName="SegmentSurface" Property="Background" Value="{DynamicResource ClipPullAccentBrush}" />
+                            <Setter TargetName="SegmentSurface" Property="BorderBrush" Value="{DynamicResource ClipPullAccentHoverBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource ClipPullOnAccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="SegmentSurface" Property="BorderBrush" Value="{DynamicResource FocusStrokeColorOuterBrush}" />
+                            <Setter TargetName="SegmentSurface" Property="BorderBrush" Value="{DynamicResource ClipPullCyanBrush}" />
                             <Setter TargetName="SegmentSurface" Property="BorderThickness" Value="2" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource ClipPullTextDisabledBrush}" />
                             <Setter TargetName="SegmentSurface" Property="Opacity" Value="0.58" />
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -110,11 +237,36 @@
         </Setter>
     </Style>
 
+    <Style x:Key="PrimaryActionButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+        <Setter Property="Appearance" Value="Primary" />
+        <Setter Property="Background" Value="{DynamicResource ClipPullAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ClipPullAccentHoverBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource ClipPullOnAccentBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ClipPullAccentHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ClipPullAccentPressedBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="ClipPullProgressBarStyle" TargetType="ProgressBar">
+        <Setter Property="Foreground" Value="{DynamicResource ClipPullCyanBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ClipPullSurfaceHoverBrush}" />
+    </Style>
+
     <Style x:Key="QueueRowStyle" TargetType="Border">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Padding" Value="16,11" />
-        <Setter Property="BorderBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ClipPullDividerBrush}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding State}" Value="Active">
+                <Setter Property="Background" Value="{DynamicResource ClipPullSurfaceSecondaryBrush}" />
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
 </ResourceDictionary>

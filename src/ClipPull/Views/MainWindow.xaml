@@ -21,6 +21,8 @@
     WindowBackdropType="Mica"
     WindowCornerPreference="Round"
     WindowStartupLocation="CenterScreen"
+    Background="{DynamicResource ClipPullBackgroundBrush}"
+    Foreground="{DynamicResource ClipPullTextPrimaryBrush}"
     mc:Ignorable="d">
 
     <ui:FluentWindow.Resources>
@@ -30,26 +32,26 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 
         <Style x:Key="QueueStateIconStyle" TargetType="ui:SymbolIcon">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource ClipPullTextTertiaryBrush}" />
             <Setter Property="Symbol" Value="{Binding State, Converter={StaticResource StateToSymbolConverter}}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding State}" Value="Completed">
-                    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource ClipPullSuccessBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding State}" Value="AlreadyDownloaded">
-                    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource ClipPullSuccessBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding State}" Value="Failed">
-                    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource ClipPullErrorBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding State}" Value="Cancelled">
-                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource ClipPullTextDisabledBrush}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
     </ui:FluentWindow.Resources>
 
-    <Grid>
+    <Grid Background="{DynamicResource ClipPullBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -58,10 +60,12 @@
         <ui:TitleBar
             Grid.Row="0"
             Title="ClipPull"
+            Background="{DynamicResource ClipPullChromeBrush}"
+            Foreground="{DynamicResource ClipPullTextPrimaryBrush}"
             ShowMaximize="True"
             ShowMinimize="True">
             <ui:TitleBar.Icon>
-                <ui:SymbolIcon Symbol="ArrowDownload24" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                <ui:SymbolIcon Symbol="ArrowDownload24" Foreground="{DynamicResource ClipPullCyanBrush}" />
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
@@ -92,8 +96,8 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Border
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        Background="{DynamicResource ClipPullSurfaceSecondaryBrush}"
+                        BorderBrush="{DynamicResource ClipPullBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="12"
                         Padding="9,4"
@@ -104,7 +108,7 @@
                             <Ellipse
                                 Width="6"
                                 Height="6"
-                                Fill="{DynamicResource AccentFillColorDefaultBrush}"
+                                Fill="{DynamicResource ClipPullCyanBrush}"
                                 VerticalAlignment="Center"
                                 Margin="0,0,7,0" />
                             <TextBlock Text="{Binding DependencySummaryText}" Style="{StaticResource CaptionTextStyle}" />
@@ -119,18 +123,23 @@
                         Icon="{ui:SymbolIcon Settings20}"
                         ToolTip="Paramètres" />
 
-                    <ui:Flyout Placement="Left" IsOpen="{Binding IsAdvancedOpen}">
+                    <ui:Flyout
+                        Placement="Left"
+                        IsOpen="{Binding IsAdvancedOpen}"
+                        Background="{DynamicResource ClipPullSurfaceElevatedBrush}"
+                        BorderBrush="{DynamicResource ClipPullBorderStrongBrush}"
+                        Foreground="{DynamicResource ClipPullTextPrimaryBrush}">
                         <StackPanel Width="320">
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                                 <Border
                                     Width="34"
                                     Height="34"
-                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                    Background="{DynamicResource ClipPullAccentBrush}"
                                     CornerRadius="8"
                                     Margin="0,0,10,0">
                                     <ui:SymbolIcon
                                         Symbol="Settings20"
-                                        Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
+                                        Foreground="{DynamicResource ClipPullOnAccentBrush}"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center" />
                                 </Border>
@@ -139,6 +148,24 @@
                                     <TextBlock Text="Options secondaires de ClipPull" Style="{StaticResource CaptionTextStyle}" />
                                 </StackPanel>
                             </StackPanel>
+
+                            <TextBlock Text="Apparence" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="132" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Thème" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" />
+                                <ComboBox
+                                    x:Name="ThemeSelector"
+                                    Grid.Column="1"
+                                    SelectedIndex="0"
+                                    SelectionChanged="OnThemeSelectionChanged">
+                                    <ComboBoxItem Content="Sombre" />
+                                    <ComboBoxItem Content="Système" />
+                                    <ComboBoxItem Content="Clair" />
+                                </ComboBox>
+                            </Grid>
 
                             <TextBlock Text="Historique" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
                             <ui:ToggleSwitch
@@ -183,7 +210,7 @@
                                 HorizontalAlignment="Left"
                                 Margin="0,0,0,16" />
 
-                            <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,14" />
+                            <Border Height="1" Background="{DynamicResource ClipPullDividerBrush}" Margin="0,0,0,14" />
                             <TextBlock Text="Composants" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
                             <Grid Margin="0,0,0,5">
                                 <Grid.ColumnDefinitions>
@@ -210,7 +237,7 @@
             <Border
                 x:Name="DropZoneBorder"
                 Grid.Row="1"
-                Style="{StaticResource WorkingSurfaceStyle}"
+                Style="{StaticResource DropZoneSurfaceStyle}"
                 Padding="20"
                 Margin="0,0,0,16">
                 <Grid>
@@ -233,12 +260,12 @@
                             Width="44"
                             Height="44"
                             CornerRadius="10"
-                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            Background="{DynamicResource ClipPullSurfaceElevatedBrush}"
                             Margin="0,0,12,0">
                             <ui:SymbolIcon
                                 Symbol="ClipboardPaste24"
                                 FontSize="22"
-                                Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                Foreground="{DynamicResource ClipPullCyanBrush}"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center" />
                         </Border>
@@ -333,7 +360,7 @@
                         Margin="0,14,0,0"
                         Padding="10"
                         CornerRadius="8"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        Background="{DynamicResource ClipPullSurfaceSecondaryBrush}"
                         Visibility="{Binding IsPreviewVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -346,7 +373,7 @@
                                 Height="54"
                                 Margin="0,0,12,0"
                                 CornerRadius="6"
-                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                Background="{DynamicResource ClipPullSurfaceHoverBrush}"
                                 ClipToBounds="True">
                                 <Image Source="{Binding PreviewThumbnail}" Stretch="UniformToFill" />
                             </Border>
@@ -376,11 +403,7 @@
 
                 <StackPanel Grid.Column="0" Margin="0,0,16,0">
                     <TextBlock Text="Format" Style="{StaticResource CaptionTextStyle}" Margin="2,0,0,5" />
-                    <Border
-                        Background="{DynamicResource ControlFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8">
+                    <Border Style="{StaticResource SegmentContainerStyle}">
                         <StackPanel Orientation="Horizontal">
                             <RadioButton
                                 Content="Vidéo"
@@ -431,7 +454,7 @@
                 <ui:Button
                     Grid.Column="4"
                     Content="{Binding PrimaryActionLabel}"
-                    Appearance="Primary"
+                    Style="{StaticResource PrimaryActionButtonStyle}"
                     FontSize="14"
                     FontWeight="SemiBold"
                     MinWidth="178"
@@ -493,12 +516,12 @@
                             Width="44"
                             Height="44"
                             CornerRadius="22"
-                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            Background="{DynamicResource ClipPullSurfaceSecondaryBrush}"
                             HorizontalAlignment="Center">
                             <ui:SymbolIcon
                                 Symbol="ArrowDownload24"
                                 FontSize="22"
-                                Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                Foreground="{DynamicResource ClipPullCyanBrush}"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center" />
                         </Border>
@@ -535,11 +558,11 @@
                                                 Width="38"
                                                 Height="38"
                                                 CornerRadius="8"
-                                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                                Background="{DynamicResource ClipPullSurfaceSecondaryBrush}"
                                                 Margin="0,0,12,0">
                                                 <ui:SymbolIcon
                                                     Symbol="VideoClip20"
-                                                    Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                                    Foreground="{DynamicResource ClipPullCyanBrush}"
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Center" />
                                             </Border>
@@ -564,6 +587,7 @@
                                                     TextTrimming="CharacterEllipsis" />
                                                 <ProgressBar
                                                     Grid.Row="2"
+                                                    Style="{StaticResource ClipPullProgressBarStyle}"
                                                     Height="3"
                                                     Margin="0,6,0,0"
                                                     Minimum="0"
@@ -612,7 +636,7 @@
                 <ui:SymbolIcon
                     Grid.Column="0"
                     Symbol="FolderOpen20"
-                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                    Foreground="{DynamicResource ClipPullTextSecondaryBrush}"
                     VerticalAlignment="Center"
                     Margin="0,0,10,0" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">

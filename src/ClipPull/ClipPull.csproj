@@ -2,13 +2,14 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClipPull</RootNamespace>
     <AssemblyName>ClipPull</AssemblyName>
     <ApplicationIcon>Assets\clippull.ico</ApplicationIcon>
-    <Version>0.3.1</Version>
+    <Version>0.4.0</Version>
     <Authors>Sébastien Dubé</Authors>
     <Description>Portable Windows downloader powered by yt-dlp, with queues, quality selection, audio, playlists, preview, local history and automatic dependency updates.</Description>
     <PublishSingleFile>true</PublishSingleFile>
@@ -17,4 +18,16 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <PublishReadyToRun>false</PublishReadyToRun>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Program.cs defines a custom [STAThread] Main; keep App.xaml as a plain Page
+         so the SDK does not also generate an application entry point. -->
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
 </Project>

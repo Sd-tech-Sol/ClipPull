@@ -29,6 +29,22 @@ L'archive n'est pas incluse dans `ClipPull.exe` ni redistribuée par ce dépôt.
 
 FFmpeg est disponible sous LGPL/GPL selon sa configuration de compilation. Le build sélectionné ici est la variante LGPL publiée par BtbN. Les utilisateurs et redistributeurs doivent consulter les licences et informations de source fournies par FFmpeg/BtbN pour leurs obligations applicables.
 
+## WPF UI
+
+L'interface de ClipPull utilise la bibliothèque WPF UI (Fluent Design pour WPF), compilée directement dans `ClipPull.exe` via NuGet.
+
+Projet : https://github.com/lepoco/wpfui
+
+Licence : MIT — Copyright (c) Leszek Pomianowski and WPF UI Contributors.
+
+## CommunityToolkit.Mvvm
+
+ClipPull utilise CommunityToolkit.Mvvm (générateurs de code MVVM officiels du .NET Foundation) pour la couche de présentation, compilé directement dans `ClipPull.exe` via NuGet.
+
+Projet : https://github.com/CommunityToolkit/dotnet
+
+Licence : MIT — Copyright (c) .NET Foundation and Contributors.
+
 ## Bootstrap Icons
 
 L'icône source `cloud-arrow-down-fill` provient de Bootstrap Icons.

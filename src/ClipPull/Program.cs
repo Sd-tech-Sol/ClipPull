@@ -1,3 +1,5 @@
+using ClipPull.Views;
+
 namespace ClipPull;
 
 internal static class Program
@@ -5,12 +7,8 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
-        ApplicationConfiguration.Initialize();
-        var form = new AdvancedMainForm
-        {
-            Text = "ClipPull 0.3.1"
-        };
-        form.EnableStartupDependencyUpdates();
-        Application.Run(form);
+        var app = new App();
+        app.InitializeComponent();
+        app.Run(new MainWindow());
     }
 }

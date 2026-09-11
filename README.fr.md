@@ -15,6 +15,7 @@ ClipPull transmet les URL à yt-dlp et peut donc fonctionner avec les sites pris
 ## Fonctions principales
 
 - Windows 10/11 x64 et un seul `ClipPull.exe` portable
+- Interface en anglais et en français; l’anglais est utilisé au premier lancement et la langue se change instantanément dans les paramètres
 - Plusieurs liens à la fois, traités séquentiellement
 - File visible, progression, suppression des doublons et réessai des échecs
 - Choix de qualité vidéo : Auto, meilleure, 1080p, 720p, 480p ou petit fichier
@@ -60,7 +61,7 @@ GitHub Actions construit aussi automatiquement l'exécutable Windows, calcule so
 
 ClipPull est un projet original de **Sébastien Dubé**. L'idée, la direction du produit, les exigences, les priorités, les approbations et les décisions finales lui appartiennent.
 
-Le développement a été assisté par IA : **OpenAI ChatGPT** a servi pour l'architecture, l'implémentation, la documentation, l'automatisation GitHub et la vérification des builds/releases, sous sa direction et sa relecture. Aucun outil d'IA n'est auteur, propriétaire ou mainteneur du projet, et l'utilisation des outils OpenAI n'implique aucune affiliation avec OpenAI ni aucune approbation de sa part.
+Le développement a été assisté par IA : **OpenAI ChatGPT et OpenAI Codex** ont servi pour l'architecture, l'implémentation, la documentation, l'automatisation GitHub et la vérification des builds/releases, sous sa direction et sa relecture. Aucun outil d'IA n'est auteur, propriétaire ou mainteneur du projet, et l'utilisation des outils OpenAI n'implique aucune affiliation avec OpenAI ni aucune approbation de sa part.
 
 **La responsabilité et la maintenance finales reviennent à Sébastien Dubé.** Voir [`AI_ASSISTANCE.md`](AI_ASSISTANCE.md) pour la divulgation complète.
 

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
 using ClipPull.Services;
+using ClipPull.Localization;
 
 namespace ClipPull;
 
@@ -400,7 +401,7 @@ internal sealed partial class MainForm : Form
         try
         {
             Directory.CreateDirectory(folder);
-            var enginePath = await _engineManager.EnsureAsync(message => SetStatusSafe($"Préparation • {message}"), token);
+            var enginePath = await _engineManager.EnsureAsync(message => SetStatusSafe($"Préparation • {message.Resolve()}"), token);
             var browser = _cookiesCheck.Checked ? _browserBox.SelectedItem?.ToString() : null;
 
             for (var index = 0; index < urls.Count; index++)
@@ -424,7 +425,7 @@ internal sealed partial class MainForm : Form
                         folder,
                         browser,
                         progress,
-                        message => SetStatusSafe($"{prefix} • {message}"),
+                        message => SetStatusSafe($"{prefix} • {message.Resolve()}"),
                         token);
 
                     succeeded++;

@@ -1,4 +1,5 @@
 using ClipPull.Views;
+using ClipPull.Localization;
 
 namespace ClipPull;
 
@@ -9,6 +10,7 @@ internal static class Program
     {
         var app = new App();
         app.InitializeComponent();
+        LocalizationService.Initialize();
         app.Run(new MainWindow());
     }
 }

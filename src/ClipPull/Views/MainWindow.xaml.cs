@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using ClipPull.ViewModels;
+using ClipPull.Localization;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 using DataFormats = System.Windows.DataFormats;
@@ -49,6 +50,7 @@ public partial class MainWindow : FluentWindow
     ];
 
     private bool _isInitializingTheme = true;
+    private bool _isInitializingLanguage = true;
 
     internal MainViewModel ViewModel { get; } = new();
 
@@ -61,6 +63,10 @@ public partial class MainWindow : FluentWindow
         _isInitializingTheme = true;
         ThemeSelector.SelectedIndex = (int)themePreference;
         _isInitializingTheme = false;
+
+        _isInitializingLanguage = true;
+        LanguageSelector.SelectedIndex = (int)LocalizationService.CurrentLanguage;
+        _isInitializingLanguage = false;
 
         ApplyThemePreference(themePreference);
         ApplicationThemeManager.Changed += OnApplicationThemeChanged;
@@ -77,7 +83,11 @@ public partial class MainWindow : FluentWindow
             ViewModel.CancelActiveOperation();
         };
 
-        Closed += (_, _) => ApplicationThemeManager.Changed -= OnApplicationThemeChanged;
+        Closed += (_, _) =>
+        {
+            ApplicationThemeManager.Changed -= OnApplicationThemeChanged;
+            ViewModel.Dispose();
+        };
     }
 
     private enum ThemePreference
@@ -141,6 +151,14 @@ public partial class MainWindow : FluentWindow
         {
             // A read-only profile should not prevent an in-session theme change.
         }
+    }
+
+    private void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializingLanguage || LanguageSelector.SelectedIndex < 0)
+            return;
+
+        LocalizationService.SetLanguage((AppLanguage)LanguageSelector.SelectedIndex);
     }
 
     private void ApplyThemePreference(ThemePreference preference)

@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using ClipPull.Localization;
 
 namespace ClipPull.Services;
 
@@ -14,7 +15,7 @@ internal sealed partial class DownloadService
         string outputDirectory,
         string? browser,
         IProgress<double>? progress,
-        Action<string>? status,
+        Action<LocalizedMessage>? status,
         CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(outputDirectory);
@@ -51,7 +52,7 @@ internal sealed partial class DownloadService
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         if (!process.Start())
-            throw new InvalidOperationException("Impossible de démarrer yt-dlp.");
+            throw new LocalizedException("Service.StartYtDlpFailed");
 
         using var cancellationRegistration = cancellationToken.Register(() =>
         {
@@ -66,7 +67,7 @@ internal sealed partial class DownloadService
             }
         });
 
-        status?.Invoke("Analyse du lien...");
+        status?.Invoke(new("Status.AnalyzingLink"));
 
         var stdoutTask = PumpStdoutAsync(process.StandardOutput, line =>
         {
@@ -80,7 +81,7 @@ internal sealed partial class DownloadService
             if (match.Success && double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
             {
                 progress?.Report(Math.Clamp(percent, 0, 100));
-                status?.Invoke($"Téléchargement... {percent:0.#}%");
+                status?.Invoke(new("Queue.DownloadingProgress", percent));
             }
         }, cancellationToken);
 
@@ -111,7 +112,7 @@ internal sealed partial class DownloadService
                 detail = string.Join(Environment.NewLine, errors);
 
             if (string.IsNullOrWhiteSpace(detail))
-                detail = "yt-dlp a retourné une erreur sans détail.";
+                throw new LocalizedException("Service.YtDlpNoDetail");
 
             throw new InvalidOperationException(detail);
         }

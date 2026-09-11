@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using ClipPull.Models;
 using ClipPull.Services;
+using ClipPull.Localization;
 
 namespace ClipPull;
 
@@ -51,7 +52,7 @@ internal sealed partial class AdvancedMainForm : Form
 
     public AdvancedMainForm()
     {
-        Text = "ClipPull 0.3";
+        Text = "ClipPull 0.5";
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(880, 700);
         ClientSize = new Size(1000, 790);
@@ -398,12 +399,12 @@ internal sealed partial class AdvancedMainForm : Form
         {
             Directory.CreateDirectory(folder);
             Directory.CreateDirectory(Path.GetDirectoryName(_archivePath)!);
-            var engine = await _engineManager.EnsureAsync(message => SetStatusSafe($"Préparation • {message}"), token);
+            var engine = await _engineManager.EnsureAsync(message => SetStatusSafe($"Préparation • {message.Resolve()}"), token);
             string? ffmpegDirectory = null;
             if (needsFfmpeg)
             {
                 var ffmpegProgress = new Progress<double>(v => SetProgress(v));
-                ffmpegDirectory = await _ffmpegManager.EnsureAsync(message => SetStatusSafe($"Préparation • {message}"), ffmpegProgress, token);
+                ffmpegDirectory = await _ffmpegManager.EnsureAsync(message => SetStatusSafe($"Préparation • {message.Resolve()}"), ffmpegProgress, token);
             }
 
             var settings = ReadSettings(ffmpegDirectory);
@@ -419,7 +420,7 @@ internal sealed partial class AdvancedMainForm : Form
                 try
                 {
                     var result = await _mediaService.DownloadAsync(engine, url, folder, settings, progress,
-                        message => SetStatusSafe($"{prefix} • {message}"), token);
+                        message => SetStatusSafe($"{prefix} • {message.Resolve()}"), token);
                     if (result.Files.Count == 0 && settings.UseHistory)
                     {
                         skipped++;
@@ -482,7 +483,7 @@ internal sealed partial class AdvancedMainForm : Form
         SetBusy(true, allowCancel: false);
         try
         {
-            var engine = await _engineManager.EnsureAsync(message => SetStatusSafe($"Aperçu • {message}"), token);
+            var engine = await _engineManager.EnsureAsync(message => SetStatusSafe($"Aperçu • {message.Resolve()}"), token);
             var browser = _cookiesCheck.Checked ? _browserBox.SelectedItem?.ToString() : null;
             SetStatusSafe("Analyse de l'aperçu...");
             var preview = await _mediaService.PreviewAsync(engine, url, browser, token);

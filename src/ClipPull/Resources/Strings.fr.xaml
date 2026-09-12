@@ -29,6 +29,7 @@
     <system:String x:Key="Settings.ClearHistory">Effacer l’historique</system:String>
     <system:String x:Key="Settings.Playlists">Playlists</system:String>
     <system:String x:Key="Settings.MaximumPerLink">Maximum par lien</system:String>
+    <system:String x:Key="Settings.Subtitles">Sous-titres</system:String>
     <system:String x:Key="Settings.BrowserSession">Session navigateur</system:String>
     <system:String x:Key="Settings.UseBrowserSession">Utiliser ma session si nécessaire</system:String>
     <system:String x:Key="Settings.Components">Composants</system:String>
@@ -77,6 +78,19 @@
     <system:String x:Key="Options.Playlist">Playlist</system:String>
     <system:String x:Key="Options.PlaylistTooltip">Autoriser le téléchargement de playlists</system:String>
     <system:String x:Key="Options.DownloadAll">Télécharger tout</system:String>
+
+    <system:String x:Key="Subtitles.ModeLabel">Sous-titres</system:String>
+    <system:String x:Key="Subtitles.ModeOff">Désactivés</system:String>
+    <system:String x:Key="Subtitles.ModeWithMedia">Avec le média</system:String>
+    <system:String x:Key="Subtitles.ModeSubtitlesOnly">Sous-titres seulement</system:String>
+    <system:String x:Key="Subtitles.LanguageLabel">Langue</system:String>
+    <system:String x:Key="Subtitles.LanguageAutomatic">Automatique</system:String>
+    <system:String x:Key="Subtitles.LanguageEnglish">English</system:String>
+    <system:String x:Key="Subtitles.LanguageFrench">Français</system:String>
+    <system:String x:Key="Subtitles.LanguageAll">Toutes disponibles</system:String>
+    <system:String x:Key="Subtitles.LanguageAllTooltip">Télécharge uniquement les pistes de sous-titres officielles. Les sous-titres automatiques ne sont pas inclus, pour éviter de télécharger des centaines de fichiers traduits automatiquement.</system:String>
+    <system:String x:Key="Subtitles.UseAutoFallback">Repli vers les sous-titres automatiques</system:String>
+    <system:String x:Key="Subtitles.UseAutoFallbackTooltip">Si aucun sous-titre officiel n’existe dans la langue choisie, ClipPull utilise plutôt les sous-titres automatiques de la plateforme.</system:String>
 
     <system:String x:Key="Queue.Downloads">Téléchargements</system:String>
     <system:String x:Key="Queue.ItemOne">1 élément</system:String>
@@ -167,6 +181,12 @@
     <system:String x:Key="Status.HistoryCleared">Historique local effacé.</system:String>
     <system:String x:Key="Status.DownloadFailed">Échec du téléchargement.</system:String>
     <system:String x:Key="Status.AutoFallback">Aucun flux combiné n’est disponible. Préparation du repli vidéo + audio…</system:String>
+    <system:String x:Key="Status.DownloadingSubtitles">Téléchargement des sous-titres…</system:String>
+    <system:String x:Key="Status.SubtitlesSaved">Sous-titres enregistrés</system:String>
+    <system:String x:Key="Status.NoSubtitlesAvailable">Aucun sous-titre disponible</system:String>
+    <system:String x:Key="Status.NoSubtitlesAvailableLanguage">Aucun sous-titre disponible dans la langue choisie</system:String>
+    <system:String x:Key="Status.UsingAutoSubtitles">Utilisation des sous-titres automatiques</system:String>
+    <system:String x:Key="Status.SubtitleConversionRequiresFfmpeg">La conversion des sous-titres nécessite FFmpeg</system:String>
 
     <system:String x:Key="Dialog.ImportTitle">Importer une liste de liens</system:String>
     <system:String x:Key="Dialog.TextFilesFilter">Fichiers texte (*.txt)|*.txt|Tous les fichiers (*.*)|*.*</system:String>
@@ -177,6 +197,9 @@
     <system:String x:Key="Dialog.AutoFallbackFfmpegMessage">Cette vidéo n’offre aucun flux combiné prêt à l’emploi. ClipPull peut télécharger les flux vidéo et audio séparément, puis les fusionner avec FFmpeg. Au premier usage, le téléchargement vérifié de FFmpeg est d’environ 140 Mo.&#x0a;&#x0a;Continuer?</system:String>
     <system:String x:Key="Dialog.ClearHistoryTitle">Effacer l’historique</system:String>
     <system:String x:Key="Dialog.ClearHistoryMessage">Effacer l’historique local des téléchargements? Les fichiers déjà téléchargés ne seront pas supprimés.</system:String>
+    <system:String x:Key="Dialog.SubtitleFfmpegTitle">Sous-titres</system:String>
+    <system:String x:Key="Dialog.SubtitleFfmpegMessage">La conversion de ce sous-titre en SRT nécessite FFmpeg (environ 140 Mo, installé une seule fois et vérifié par SHA-256). Continuer pour l’installer maintenant, ou conserver le sous-titre dans son format d’origine?</system:String>
+    <system:String x:Key="Dialog.KeepOriginalFormat">Conserver le format d’origine</system:String>
 
     <system:String x:Key="Service.StartYtDlpFailed">Impossible de démarrer yt-dlp.</system:String>
     <system:String x:Key="Service.YtDlpNoDetail">yt-dlp a retourné une erreur sans détail.</system:String>
@@ -215,4 +238,6 @@
     <system:String x:Key="Service.FfmpegArchiveMissingBinaries">L’archive FFmpeg vérifiée ne contient pas les exécutables attendus.</system:String>
     <system:String x:Key="Service.FfmpegReady">FFmpeg prêt.</system:String>
     <system:String x:Key="Service.FfmpegFileMissing">{0} est absent de l’archive FFmpeg.</system:String>
+    <system:String x:Key="Service.NoSubtitlesAvailable">Aucun sous-titre disponible</system:String>
+    <system:String x:Key="Service.NoSubtitlesAvailableLanguage">Aucun sous-titre disponible dans la langue choisie</system:String>
 </ResourceDictionary>

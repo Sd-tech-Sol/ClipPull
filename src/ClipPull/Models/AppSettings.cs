@@ -4,7 +4,7 @@ namespace ClipPull.Models;
 
 internal sealed class AppSettings
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     public string Language { get; set; } = "English";
@@ -19,6 +19,13 @@ internal sealed class AppSettings
     public bool CheckForUpdates { get; set; } = true;
     public DateTimeOffset? LastUpdateCheckUtc { get; set; }
     public WindowSettings Window { get; set; } = new();
+
+    // Added in schema v2. A settings.json from v1 has none of these properties, and
+    // System.Text.Json leaves missing properties at their default, which already is
+    // the required migration default: subtitles Off, Automatic language, fallback off.
+    public int SubtitleModeIndex { get; set; }
+    public int SubtitleLanguageIndex { get; set; }
+    public bool UseAutomaticSubtitleFallback { get; set; }
 
     public static string DefaultOutputFolder => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),

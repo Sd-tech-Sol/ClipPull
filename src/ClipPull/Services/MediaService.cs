@@ -26,11 +26,15 @@ internal sealed partial class MediaService
         Directory.CreateDirectory(outputDirectory);
         var outputTemplate = Path.Combine(outputDirectory, "%(title).180s [%(id)s].%(ext)s");
         var startInfo = BaseStartInfo(enginePath);
+        var isSubtitlesOnly = settings.SubtitleMode == SubtitleMode.SubtitlesOnly;
 
         Add(startInfo, "--ignore-config");
         Add(startInfo, "--no-plugin-dirs");
         Add(startInfo, "--newline");
         Add(startInfo, "--progress");
+        // --print implies --quiet, which would otherwise suppress the "[info] Writing
+        // video subtitles to: ..." line that subtitle detection below depends on.
+        Add(startInfo, "--no-quiet");
         Add(startInfo, "--windows-filenames");
         Add(startInfo, "--no-overwrites");
         Add(startInfo, "--output", outputTemplate);
@@ -49,8 +53,8 @@ internal sealed partial class MediaService
             Add(startInfo, "--no-playlist");
         }
 
-        if (settings.UseHistory && !string.IsNullOrWhiteSpace(settings.ArchivePath))
-            Add(startInfo, "--download-archive", settings.ArchivePath);
+        if (ShouldUseDownloadArchive(settings))
+            Add(startInfo, "--download-archive", settings.ArchivePath!);
 
         if (!string.IsNullOrWhiteSpace(settings.Browser))
             Add(startInfo, "--cookies-from-browser", settings.Browser.ToLowerInvariant());
@@ -58,11 +62,17 @@ internal sealed partial class MediaService
         if (!string.IsNullOrWhiteSpace(settings.FfmpegDirectory))
             Add(startInfo, "--ffmpeg-location", settings.FfmpegDirectory);
 
-        ConfigureFormat(startInfo, settings, useAutoFallback);
+        if (isSubtitlesOnly)
+            Add(startInfo, "--skip-download");
+        else
+            ConfigureFormat(startInfo, settings, useAutoFallback);
+
+        ConfigureSubtitles(startInfo, settings);
         Add(startInfo, url);
 
         var errors = new Queue<string>();
         var files = new List<string>();
+        var subtitleFiles = new List<string>();
         var archiveHit = false;
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
@@ -79,6 +89,14 @@ internal sealed partial class MediaService
                 var file = line["CLIPPULL_FILE=".Length..].Trim();
                 if (!string.IsNullOrWhiteSpace(file))
                     files.Add(file);
+                return;
+            }
+
+            if (IsSubtitleWrittenLine(line, out var subtitleFile))
+            {
+                if (!string.IsNullOrWhiteSpace(subtitleFile))
+                    subtitleFiles.Add(subtitleFile);
+                status?.Invoke(new("Status.DownloadingSubtitles"));
                 return;
             }
 
@@ -118,7 +136,7 @@ internal sealed partial class MediaService
         lock (errors)
             errorDetail = string.Join(Environment.NewLine, errors.Where(x => !string.IsNullOrWhiteSpace(x)));
 
-        if (!useAutoFallback && settings.Mode == MediaMode.Video && settings.Quality == VideoQuality.Auto &&
+        if (!useAutoFallback && !isSubtitlesOnly && settings.Mode == MediaMode.Video && settings.Quality == VideoQuality.Auto &&
             IsRequestedFormatUnavailable(errors))
         {
             throw new RequestedFormatUnavailableException(errorDetail, files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
@@ -131,13 +149,25 @@ internal sealed partial class MediaService
             throw new InvalidOperationException(errorDetail);
         }
 
+        // yt-dlp exits 0 even when no subtitle matched the requested language(s); a
+        // subtitles-only request with nothing written is therefore this feature's own
+        // failure condition, not a process error.
+        if (isSubtitlesOnly && subtitleFiles.Count == 0)
+        {
+            throw new LocalizedException(settings.SubtitleLanguage == SubtitleLanguagePreference.All
+                ? "Service.NoSubtitlesAvailable"
+                : "Service.NoSubtitlesAvailableLanguage");
+        }
+
         progress?.Report(new DownloadProgress(100, null, TimeSpan.Zero));
         if (archiveHit && files.Count == 0)
             status?.Invoke(new("Service.AlreadyDownloadedHistory"));
         else if (files.Count > 1)
             status?.Invoke(new("Service.FilesDownloadedMany", files.Count));
 
-        return new DownloadResult(files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        return new DownloadResult(
+            files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            subtitleFiles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
     }
 
     public async Task<MediaPreview> PreviewAsync(
@@ -222,6 +252,55 @@ internal sealed partial class MediaService
             Add(startInfo, "--merge-output-format", "mp4/mkv");
     }
 
+    // A subtitles-only request must never consult the media download archive: an
+    // already-archived video id makes yt-dlp skip the whole entry, including subtitle
+    // extraction, before ever reaching --write-subs.
+    internal static bool ShouldUseDownloadArchive(DownloadSettings settings) =>
+        settings.SubtitleMode != SubtitleMode.SubtitlesOnly &&
+        settings.UseHistory &&
+        !string.IsNullOrWhiteSpace(settings.ArchivePath);
+
+    internal static void ConfigureSubtitles(ProcessStartInfo startInfo, DownloadSettings settings)
+    {
+        if (settings.SubtitleMode == SubtitleMode.Off)
+            return;
+
+        Add(startInfo, "--write-subs");
+        Add(startInfo, "--sub-format", "srt/best");
+
+        var isAllAvailable = settings.SubtitleLanguage == SubtitleLanguagePreference.All;
+        // The caller (MainViewModel) resolves "Automatic" to the current interface
+        // language before building these settings; English is a deterministic,
+        // LocalizationService-free fallback if this is ever reached unresolved.
+        var langPattern = settings.SubtitleLanguage switch
+        {
+            SubtitleLanguagePreference.French => "fr.*",
+            SubtitleLanguagePreference.All => "all,-live_chat",
+            _ => "en.*"
+        };
+        Add(startInfo, "--sub-langs", langPattern);
+
+        // "All available" downloads official subtitle tracks only: combining it with
+        // auto-generated captions would pull in every machine-translated language yt-dlp
+        // exposes for some sites (over a hundred for popular YouTube videos).
+        if (settings.UseAutomaticSubtitleFallback && !isAllAvailable)
+            Add(startInfo, "--write-auto-subs");
+
+        // yt-dlp prefers a manually authored track over an auto-generated one for the same
+        // language when both --write-subs and --write-auto-subs are given, so this never
+        // produces a duplicate official+auto pair for one language.
+
+        if (settings.ConvertSubtitlesToSrt)
+            Add(startInfo, "--convert-subs", "srt");
+    }
+
+    internal static bool IsSubtitleWrittenLine(string line, out string path)
+    {
+        var match = SubtitleWrittenRegex().Match(line);
+        path = match.Success ? match.Groups[1].Value.Trim() : string.Empty;
+        return match.Success;
+    }
+
     internal static bool TryParseProgress(string line, out DownloadProgress progress)
     {
         progress = new DownloadProgress(0, null, null);
@@ -304,4 +383,7 @@ internal sealed partial class MediaService
 
     [GeneratedRegex(@"^ERROR:\s+.*Requested format is not available\. Use --list-formats for a list of available formats\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex RequestedFormatUnavailableRegex();
+
+    [GeneratedRegex(@"^\[info\]\s+Writing video subtitles to:\s*(.+)$", RegexOptions.CultureInvariant)]
+    private static partial Regex SubtitleWrittenRegex();
 }

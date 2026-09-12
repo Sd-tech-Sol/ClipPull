@@ -221,6 +221,48 @@
                                     IsEnabled="{Binding IsPlaylistLimitEnabled}" />
                             </Grid>
 
+                            <TextBlock Text="{DynamicResource Settings.Subtitles}" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="150" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{DynamicResource Subtitles.ModeLabel}" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" />
+                                <ComboBox
+                                    x:Name="SubtitleModeSelector"
+                                    Grid.Column="1"
+                                    SelectedIndex="{Binding SubtitleModeIndex}"
+                                    IsEnabled="{Binding IsNotBusy}">
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.ModeOff}" />
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.ModeWithMedia}" />
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.ModeSubtitlesOnly}" />
+                                </ComboBox>
+                            </Grid>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="150" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{DynamicResource Subtitles.LanguageLabel}" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" />
+                                <ComboBox
+                                    x:Name="SubtitleLanguageSelector"
+                                    Grid.Column="1"
+                                    SelectedIndex="{Binding SubtitleLanguageIndex}"
+                                    IsEnabled="{Binding IsSubtitleLanguageEnabled}">
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.LanguageAutomatic}" />
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.LanguageEnglish}" />
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.LanguageFrench}" />
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.LanguageAll}" ToolTip="{DynamicResource Subtitles.LanguageAllTooltip}" />
+                                </ComboBox>
+                            </Grid>
+                            <ui:ToggleSwitch
+                                OnContent="{DynamicResource Subtitles.UseAutoFallback}"
+                                OffContent="{DynamicResource Subtitles.UseAutoFallback}"
+                                IsChecked="{Binding UseAutomaticSubtitleFallback}"
+                                IsEnabled="{Binding IsSubtitleFallbackEnabled}"
+                                ToolTip="{DynamicResource Subtitles.UseAutoFallbackTooltip}"
+                                Margin="0,0,0,16" />
+
                             <TextBlock Text="{DynamicResource Settings.BrowserSession}" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
                             <ui:ToggleSwitch
                                 OnContent="{DynamicResource Settings.UseBrowserSession}"
@@ -680,6 +722,12 @@
                                                         TextAlignment="Right"
                                                         Foreground="{DynamicResource ClipPullTextSecondaryBrush}"
                                                         Visibility="{Binding State, Converter={StaticResource ActiveStateToVisibilityConverter}}" />
+                                                    <TextBlock
+                                                        Text="{Binding SubtitleStatusText}"
+                                                        Style="{StaticResource CaptionTextStyle}"
+                                                        TextAlignment="Right"
+                                                        Foreground="{DynamicResource ClipPullTextSecondaryBrush}"
+                                                        Visibility="{Binding HasSubtitleStatus, Converter={StaticResource BoolToVisibilityConverter}}" />
                                                 </StackPanel>
                                             </StackPanel>
 

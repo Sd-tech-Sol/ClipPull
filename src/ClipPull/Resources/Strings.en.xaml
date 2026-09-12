@@ -29,6 +29,7 @@
     <system:String x:Key="Settings.ClearHistory">Clear history</system:String>
     <system:String x:Key="Settings.Playlists">Playlists</system:String>
     <system:String x:Key="Settings.MaximumPerLink">Maximum per link</system:String>
+    <system:String x:Key="Settings.Subtitles">Subtitles</system:String>
     <system:String x:Key="Settings.BrowserSession">Browser session</system:String>
     <system:String x:Key="Settings.UseBrowserSession">Use my session when needed</system:String>
     <system:String x:Key="Settings.Components">Components</system:String>
@@ -77,6 +78,19 @@
     <system:String x:Key="Options.Playlist">Playlist</system:String>
     <system:String x:Key="Options.PlaylistTooltip">Allow playlist downloads</system:String>
     <system:String x:Key="Options.DownloadAll">Download all</system:String>
+
+    <system:String x:Key="Subtitles.ModeLabel">Subtitles</system:String>
+    <system:String x:Key="Subtitles.ModeOff">Off</system:String>
+    <system:String x:Key="Subtitles.ModeWithMedia">With media</system:String>
+    <system:String x:Key="Subtitles.ModeSubtitlesOnly">Subtitles only</system:String>
+    <system:String x:Key="Subtitles.LanguageLabel">Language</system:String>
+    <system:String x:Key="Subtitles.LanguageAutomatic">Automatic</system:String>
+    <system:String x:Key="Subtitles.LanguageEnglish">English</system:String>
+    <system:String x:Key="Subtitles.LanguageFrench">Français</system:String>
+    <system:String x:Key="Subtitles.LanguageAll">All available</system:String>
+    <system:String x:Key="Subtitles.LanguageAllTooltip">Downloads official subtitle tracks only. Automatic captions aren't included, to avoid downloading hundreds of machine-translated files.</system:String>
+    <system:String x:Key="Subtitles.UseAutoFallback">Fall back to auto-generated subtitles</system:String>
+    <system:String x:Key="Subtitles.UseAutoFallbackTooltip">When no official subtitle exists for the selected language, ClipPull uses the platform's automatic captions instead.</system:String>
 
     <system:String x:Key="Queue.Downloads">Downloads</system:String>
     <system:String x:Key="Queue.ItemOne">1 item</system:String>
@@ -167,6 +181,12 @@
     <system:String x:Key="Status.HistoryCleared">Local history cleared.</system:String>
     <system:String x:Key="Status.DownloadFailed">Download failed.</system:String>
     <system:String x:Key="Status.AutoFallback">No combined stream is available. Preparing the video + audio fallback…</system:String>
+    <system:String x:Key="Status.DownloadingSubtitles">Downloading subtitles…</system:String>
+    <system:String x:Key="Status.SubtitlesSaved">Subtitles saved</system:String>
+    <system:String x:Key="Status.NoSubtitlesAvailable">No subtitles available</system:String>
+    <system:String x:Key="Status.NoSubtitlesAvailableLanguage">No subtitles available in the selected language</system:String>
+    <system:String x:Key="Status.UsingAutoSubtitles">Using auto-generated subtitles</system:String>
+    <system:String x:Key="Status.SubtitleConversionRequiresFfmpeg">Subtitle conversion requires FFmpeg</system:String>
 
     <system:String x:Key="Dialog.ImportTitle">Import a list of links</system:String>
     <system:String x:Key="Dialog.TextFilesFilter">Text files (*.txt)|*.txt|All files (*.*)|*.*</system:String>
@@ -177,6 +197,9 @@
     <system:String x:Key="Dialog.AutoFallbackFfmpegMessage">This video has no ready-to-use combined stream. ClipPull can download separate video and audio streams and merge them with FFmpeg. On first use, the verified FFmpeg download is about 140 MB.&#x0a;&#x0a;Continue?</system:String>
     <system:String x:Key="Dialog.ClearHistoryTitle">Clear history</system:String>
     <system:String x:Key="Dialog.ClearHistoryMessage">Clear the local download history? Files already downloaded won't be deleted.</system:String>
+    <system:String x:Key="Dialog.SubtitleFfmpegTitle">Subtitles</system:String>
+    <system:String x:Key="Dialog.SubtitleFfmpegMessage">Converting this subtitle to SRT needs FFmpeg (about 140 MB, installed once and verified by SHA-256). Continue to install it now, or keep the subtitle in its original format?</system:String>
+    <system:String x:Key="Dialog.KeepOriginalFormat">Keep original format</system:String>
 
     <system:String x:Key="Service.StartYtDlpFailed">Couldn't start yt-dlp.</system:String>
     <system:String x:Key="Service.YtDlpNoDetail">yt-dlp returned an error without details.</system:String>
@@ -215,4 +238,6 @@
     <system:String x:Key="Service.FfmpegArchiveMissingBinaries">The verified FFmpeg archive doesn't contain the expected executables.</system:String>
     <system:String x:Key="Service.FfmpegReady">FFmpeg ready.</system:String>
     <system:String x:Key="Service.FfmpegFileMissing">{0} is missing from the FFmpeg archive.</system:String>
+    <system:String x:Key="Service.NoSubtitlesAvailable">No subtitles available</system:String>
+    <system:String x:Key="Service.NoSubtitlesAvailableLanguage">No subtitles available in the selected language</system:String>
 </ResourceDictionary>

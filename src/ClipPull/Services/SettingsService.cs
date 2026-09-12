@@ -132,6 +132,8 @@ internal sealed class SettingsService
         settings.FormatIndex = Math.Clamp(settings.FormatIndex, 0, 2);
         settings.QualityIndex = Math.Clamp(settings.QualityIndex, 0, 5);
         settings.PlaylistLimit = Math.Clamp(settings.PlaylistLimit, 1, 500);
+        settings.SubtitleModeIndex = Math.Clamp(settings.SubtitleModeIndex, 0, 2);
+        settings.SubtitleLanguageIndex = Math.Clamp(settings.SubtitleLanguageIndex, 0, 3);
         if (!Browsers.Contains(settings.SelectedBrowser))
             settings.SelectedBrowser = "Chrome";
         if (settings.LastUpdateCheckUtc > DateTimeOffset.UtcNow.AddDays(1))

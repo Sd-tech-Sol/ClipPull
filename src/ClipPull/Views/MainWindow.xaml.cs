@@ -86,6 +86,7 @@ public partial class MainWindow : FluentWindow
             SaveWindowSettings();
             ViewModel.CancelStartupChecks();
             ViewModel.CancelActiveOperation();
+            ViewModel.CancelUpdateChecks();
         };
 
         Closed += (_, _) =>

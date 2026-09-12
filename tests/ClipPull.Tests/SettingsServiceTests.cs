@@ -1,3 +1,4 @@
+using ClipPull.Models;
 using ClipPull.Services;
 
 namespace ClipPull.Tests;
@@ -27,6 +28,9 @@ public sealed class SettingsServiceTests : IDisposable
         settings.SelectedBrowser = "Firefox";
         settings.PlaylistLimit = 27;
         settings.CheckForUpdates = false;
+        settings.SubtitleModeIndex = 2;
+        settings.SubtitleLanguageIndex = 2;
+        settings.UseAutomaticSubtitleFallback = true;
         settings.Window.Width = 1100;
         settings.Window.Height = 700;
         settings.Window.IsMaximized = true;
@@ -40,6 +44,9 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.Equal("Firefox", restored.SelectedBrowser);
         Assert.Equal(27, restored.PlaylistLimit);
         Assert.False(restored.CheckForUpdates);
+        Assert.Equal(2, restored.SubtitleModeIndex);
+        Assert.Equal(2, restored.SubtitleLanguageIndex);
+        Assert.True(restored.UseAutomaticSubtitleFallback);
         Assert.Equal(1100, restored.Window.Width);
         Assert.Equal(700, restored.Window.Height);
         Assert.True(restored.Window.IsMaximized);
@@ -56,7 +63,7 @@ public sealed class SettingsServiceTests : IDisposable
 
         Assert.Equal("English", settings.Language);
         Assert.Equal("Dark", settings.Theme);
-        Assert.Equal(1, settings.SchemaVersion);
+        Assert.Equal(AppSettings.CurrentSchemaVersion, settings.SchemaVersion);
         Assert.NotNull(service.Load());
     }
 
@@ -65,19 +72,41 @@ public sealed class SettingsServiceTests : IDisposable
     {
         Directory.CreateDirectory(_directory);
         File.WriteAllText(Path.Combine(_directory, "settings.json"),
-            """{"schemaVersion":99,"language":"xx","theme":"pink","formatIndex":99,"qualityIndex":-4,"playlistLimit":9999,"selectedBrowser":"unknown","window":{"width":10,"height":99999,"isMaximized":true}}""");
+            """{"schemaVersion":99,"language":"xx","theme":"pink","formatIndex":99,"qualityIndex":-4,"playlistLimit":9999,"subtitleModeIndex":99,"subtitleLanguageIndex":-4,"selectedBrowser":"unknown","window":{"width":10,"height":99999,"isMaximized":true}}""");
 
         var settings = new SettingsService(_directory).Load();
 
-        Assert.Equal(1, settings.SchemaVersion);
+        Assert.Equal(AppSettings.CurrentSchemaVersion, settings.SchemaVersion);
         Assert.Equal("English", settings.Language);
         Assert.Equal("Dark", settings.Theme);
         Assert.Equal(2, settings.FormatIndex);
         Assert.Equal(0, settings.QualityIndex);
         Assert.Equal(500, settings.PlaylistLimit);
+        Assert.Equal(2, settings.SubtitleModeIndex);
+        Assert.Equal(0, settings.SubtitleLanguageIndex);
         Assert.Equal("Chrome", settings.SelectedBrowser);
         Assert.Equal(760, settings.Window.Width);
         Assert.Equal(2160, settings.Window.Height);
+    }
+
+    [Fact]
+    public void LegacySchemaVersionOneFileMigratesSubtitlesToOffDefaults()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(Path.Combine(_directory, "settings.json"),
+            """{"schemaVersion":1,"language":"French","theme":"Light","formatIndex":1,"useHistory":false}""");
+
+        var settings = new SettingsService(_directory).Load();
+
+        Assert.Equal(AppSettings.CurrentSchemaVersion, settings.SchemaVersion);
+        Assert.Equal(0, settings.SubtitleModeIndex);
+        Assert.Equal(0, settings.SubtitleLanguageIndex);
+        Assert.False(settings.UseAutomaticSubtitleFallback);
+        // Unrelated v1 settings must survive the migration untouched.
+        Assert.Equal("French", settings.Language);
+        Assert.Equal("Light", settings.Theme);
+        Assert.Equal(1, settings.FormatIndex);
+        Assert.False(settings.UseHistory);
     }
 
     public void Dispose()

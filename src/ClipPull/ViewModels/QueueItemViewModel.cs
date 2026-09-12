@@ -6,13 +6,14 @@ namespace ClipPull.ViewModels;
 
 internal sealed partial class QueueItemViewModel : ObservableObject
 {
-    public QueueItemViewModel(string url, string platform, string displayText, int formatIndex, int qualityIndex)
+    public QueueItemViewModel(string url, string platform, string displayText, int formatIndex, int qualityIndex, int subtitleModeIndex = 0)
     {
         Url = url;
         Platform = platform;
         DisplayText = displayText;
         FormatIndex = formatIndex;
         QualityIndex = qualityIndex;
+        SubtitleModeIndex = subtitleModeIndex;
     }
 
     public string Url { get; }
@@ -27,6 +28,8 @@ internal sealed partial class QueueItemViewModel : ObservableObject
 
     public int QualityIndex { get; }
 
+    public int SubtitleModeIndex { get; }
+
     public string OptionsText
     {
         get
@@ -37,21 +40,40 @@ internal sealed partial class QueueItemViewModel : ObservableObject
                 2 => "Options.FormatMP3",
                 _ => "Options.FormatVideo"
             });
-            if (FormatIndex != 0)
-                return $"{Platform}  ·  {format}";
 
-            var quality = LocalizationService.Get(QualityIndex switch
+            string baseText;
+            if (FormatIndex != 0)
             {
-                1 => "Options.QualityBest",
-                2 => "Options.Quality1080",
-                3 => "Options.Quality720",
-                4 => "Options.Quality480",
-                5 => "Options.QualitySmall",
-                _ => "Options.QualityAuto"
-            });
-            return $"{Platform}  ·  {format}  ·  {quality}";
+                baseText = $"{Platform}  ·  {format}";
+            }
+            else
+            {
+                var quality = LocalizationService.Get(QualityIndex switch
+                {
+                    1 => "Options.QualityBest",
+                    2 => "Options.Quality1080",
+                    3 => "Options.Quality720",
+                    4 => "Options.Quality480",
+                    5 => "Options.QualitySmall",
+                    _ => "Options.QualityAuto"
+                });
+                baseText = $"{Platform}  ·  {format}  ·  {quality}";
+            }
+
+            return SubtitleModeIndex switch
+            {
+                1 => $"{baseText}  ·  {LocalizationService.Get("Subtitles.ModeWithMedia")}",
+                2 => LocalizationService.Get("Subtitles.ModeSubtitlesOnly"),
+                _ => baseText
+            };
         }
     }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSubtitleStatus))]
+    private string? _subtitleStatusText;
+
+    public bool HasSubtitleStatus => !string.IsNullOrEmpty(SubtitleStatusText);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRetry))]
@@ -126,6 +148,7 @@ internal sealed partial class QueueItemViewModel : ObservableObject
         Progress = 0;
         BytesPerSecond = null;
         Eta = null;
+        SubtitleStatusText = null;
     }
 
     partial void OnStateChanged(QueueItemState value)

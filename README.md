@@ -20,6 +20,7 @@ ClipPull passes URLs to yt-dlp and can therefore work with sites supported by th
 - Visible queue with speed/ETA, removable waiting or finished items, duplicate filtering, and retry of failed items
 - Video quality selection: Auto, best, 1080p, 720p, 480p, or smaller file; Auto prefers a ready-to-use stream and falls back to a verified FFmpeg merge only when needed
 - Audio-only M4A or MP3
+- Optional subtitles: with the media, subtitles only (no video/audio download), Automatic/English/French/all available languages, and an optional fallback to auto-generated captions; official subtitles are always preferred over automatic ones, and ClipPull saves SRT when it can be produced without an unwanted FFmpeg install
 - Optional playlists with a configurable safety limit
 - Drag-and-drop or import of `.txt` link lists
 - Optional local download history through yt-dlp's `--download-archive`

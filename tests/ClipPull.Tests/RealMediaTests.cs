@@ -17,9 +17,10 @@ public sealed class RealMediaTests
     // Public domain, no dialogue: neither manual nor auto-generated subtitles exist.
     private const string NoSubtitleMediaUrl = "https://www.youtube.com/watch?v=aqz-KE-bpKQ";
 
-    // No manually authored subtitles, but a very large set of auto-generated/translated
-    // captions -- the right fixture for exercising the auto-caption fallback path.
-    private const string AutoOnlySubtitleMediaUrl = "https://www.youtube.com/watch?v=9bZkp7q19f0";
+    // No manually authored English subtitle, and the auto-generated English caption is
+    // only ever offered as VTT (no native SRT option) -- the right fixture for exercising
+    // both the auto-caption fallback path and VTT-to-SRT conversion.
+    private const string AutoOnlySubtitleMediaUrl = "https://www.youtube.com/watch?v=OPf0YbXqDm0";
 
     [Fact]
     [Trait("Category", "RealMedia")]
@@ -133,6 +134,33 @@ public sealed class RealMediaTests
 
     [Fact]
     [Trait("Category", "RealMedia")]
+    public async Task SubtitlesOnlyManualEnglishSucceedsAsNativeSrtWithoutRequestingFfmpegConversion()
+    {
+        if (!ShouldRun())
+            return;
+
+        var directory = NewOutputDirectory();
+        try
+        {
+            // ConvertSubtitlesToSrt is left off: yt-dlp's own --sub-format "srt/best"
+            // must produce SRT directly for a manually authored YouTube track, with no
+            // FFmpeg involvement of any kind.
+            var settings = SubtitleSettings(SubtitleMode.SubtitlesOnly, SubtitleLanguagePreference.English, useConversion: false);
+            var result = await new MediaService().DownloadAsync(
+                YtDlpPath(), ManualSubtitleMediaUrl, directory, settings, null, null, CancellationToken.None);
+
+            Assert.NotEmpty(result.SubtitleFiles);
+            Assert.All(result.SubtitleFiles, file => Assert.True(File.Exists(file)));
+            Assert.All(result.SubtitleFiles, file => Assert.EndsWith(".srt", file, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "RealMedia")]
     public async Task SubtitlesOnlyWithNoSubtitlesAvailableFailsClearly()
     {
         if (!ShouldRun())
@@ -180,6 +208,51 @@ public sealed class RealMediaTests
 
     [Fact]
     [Trait("Category", "RealMedia")]
+    public async Task VttSubtitleConvertsToSrtUsingTheAlreadyInstalledFfmpegAfterDownload()
+    {
+        if (!ShouldRun())
+            return;
+
+        var directory = NewOutputDirectory();
+        try
+        {
+            // No FFmpeg conversion requested from yt-dlp itself: the auto-generated
+            // caption comes back as native VTT, exactly like the deferred-conversion
+            // flow leaves it before ClipPull decides whether to convert it locally.
+            var settings = SubtitleSettings(
+                SubtitleMode.SubtitlesOnly, SubtitleLanguagePreference.English,
+                useAutomaticFallback: true, useConversion: false);
+            var result = await new MediaService().DownloadAsync(
+                YtDlpPath(), AutoOnlySubtitleMediaUrl, directory, settings, null, null, CancellationToken.None);
+
+            Assert.NotEmpty(result.SubtitleFiles);
+            // Different auto-caption variants of the same video can offer different
+            // format lists; only the non-SRT ones exercise the conversion step, which
+            // mirrors exactly what FinalizeSubtitlesAsync does per file in production.
+            var needingConversion = result.SubtitleFiles
+                .Where(file => !file.EndsWith(".srt", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            Assert.NotEmpty(needingConversion);
+
+            var ffmpegDirectory = FfmpegDirectory();
+            foreach (var vtt in needingConversion)
+            {
+                var converted = await MediaService.ConvertSubtitleToSrtAsync(ffmpegDirectory, vtt, CancellationToken.None);
+
+                Assert.NotNull(converted);
+                Assert.EndsWith(".srt", converted, StringComparison.OrdinalIgnoreCase);
+                Assert.True(File.Exists(converted));
+                Assert.False(File.Exists(vtt), "the original VTT should be removed once the SRT conversion is verified");
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "RealMedia")]
     public async Task WithMediaSubtitleUnavailableDoesNotFailTheMediaDownload()
     {
         if (!ShouldRun())
@@ -210,9 +283,10 @@ public sealed class RealMediaTests
     private static DownloadSettings SubtitleSettings(
         SubtitleMode subtitleMode,
         SubtitleLanguagePreference subtitleLanguage,
-        bool useAutomaticFallback = false) =>
-        new(MediaMode.Video, VideoQuality.Auto, false, 50, false, null, FfmpegDirectory(), null,
-            subtitleMode, subtitleLanguage, useAutomaticFallback, ConvertSubtitlesToSrt: true);
+        bool useAutomaticFallback = false,
+        bool useConversion = true) =>
+        new(MediaMode.Video, VideoQuality.Auto, false, 50, false, null, useConversion ? FfmpegDirectory() : null, null,
+            subtitleMode, subtitleLanguage, useAutomaticFallback, ConvertSubtitlesToSrt: useConversion);
 
     private static bool ShouldRun() =>
         string.Equals(Environment.GetEnvironmentVariable("CLIPPULL_RUN_MEDIA_TESTS"), "1", StringComparison.Ordinal);

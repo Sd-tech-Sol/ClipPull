@@ -209,6 +209,176 @@ public sealed class MediaServiceTests
         Assert.False(MediaService.IsSubtitleWrittenLine("[info] There are no subtitles for the requested languages", out _));
     }
 
+    [Fact]
+    public void ResolveFinalSubtitlePathPrefersAnExistingSrtOverTheRecordedVtt()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var recorded = Path.Combine(directory, "Video [abc123].en.vtt");
+            var srt = Path.Combine(directory, "Video [abc123].en.srt");
+            File.WriteAllText(recorded, "WEBVTT");
+            File.WriteAllText(srt, "1\n00:00:00,000 --> 00:00:01,000\nHi\n");
+
+            var resolved = MediaService.ResolveFinalSubtitlePath(recorded);
+
+            Assert.Equal(srt, resolved);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ResolveFinalSubtitlePathKeepsTheRecordedFileWhenNoSrtCounterpartExists()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var recorded = Path.Combine(directory, "Video [abc123].en.vtt");
+            File.WriteAllText(recorded, "WEBVTT");
+
+            var resolved = MediaService.ResolveFinalSubtitlePath(recorded);
+
+            Assert.Equal(recorded, resolved);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ResolveFinalSubtitlePathNeverClaimsAPathThatDoesNotExist()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var recorded = Path.Combine(directory, "Video [abc123].en.vtt");
+
+            var resolved = MediaService.ResolveFinalSubtitlePath(recorded);
+
+            Assert.Null(resolved);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ResolveFinalSubtitlePathAcceptsTheRecordedSrtDirectly()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var recorded = Path.Combine(directory, "Video [abc123].en.srt");
+            File.WriteAllText(recorded, "1\n00:00:00,000 --> 00:00:01,000\nHi\n");
+
+            var resolved = MediaService.ResolveFinalSubtitlePath(recorded);
+
+            Assert.Equal(recorded, resolved);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ConvertSubtitleToSrtAsyncReturnsNullWhenSourceFileIsMissing()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var missing = Path.Combine(directory, "missing.en.vtt");
+
+            var result = await MediaService.ConvertSubtitleToSrtAsync(directory, missing, CancellationToken.None);
+
+            Assert.Null(result);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ConvertSubtitleToSrtAsyncReturnsNullAndKeepsTheOriginalWhenFfmpegIsMissing()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var source = Path.Combine(directory, "Video [abc123].en.vtt");
+            File.WriteAllText(source, "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHi\n");
+            var emptyFfmpegDirectory = Path.Combine(directory, "no-ffmpeg-here");
+            Directory.CreateDirectory(emptyFfmpegDirectory);
+
+            var result = await MediaService.ConvertSubtitleToSrtAsync(emptyFfmpegDirectory, source, CancellationToken.None);
+
+            Assert.Null(result);
+            Assert.True(File.Exists(source));
+            Assert.False(File.Exists(Path.ChangeExtension(source, ".srt")));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ConvertSubtitleToSrtAsyncSkipsAlreadySrtFilesWithoutInvokingFfmpeg()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var srt = Path.Combine(directory, "Video [abc123].en.srt");
+            File.WriteAllText(srt, "1\n00:00:00,000 --> 00:00:01,000\nHi\n");
+
+            // A directory with no ffmpeg.exe would make any real invocation fail;
+            // reaching the .srt short-circuit means ffmpeg was never invoked at all.
+            var result = await MediaService.ConvertSubtitleToSrtAsync(directory, srt, CancellationToken.None);
+
+            Assert.Equal(srt, result);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ConvertSubtitleToSrtAsyncNeverOverwritesAnExistingTarget()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var source = Path.Combine(directory, "Video [abc123].en.vtt");
+            var target = Path.Combine(directory, "Video [abc123].en.srt");
+            File.WriteAllText(source, "WEBVTT");
+            File.WriteAllText(target, "PRE-EXISTING");
+
+            var result = await MediaService.ConvertSubtitleToSrtAsync(directory, source, CancellationToken.None);
+
+            Assert.Equal(target, result);
+            Assert.Equal("PRE-EXISTING", File.ReadAllText(target));
+            // The source is left alone too: no ffmpeg run means nothing was deleted.
+            Assert.True(File.Exists(source));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static string NewTempDirectory()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"ClipPull-mediaservice-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        return directory;
+    }
+
     private static DownloadSettings Subtitled(
         SubtitleMode mode,
         SubtitleLanguagePreference language,

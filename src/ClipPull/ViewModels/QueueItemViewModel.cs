@@ -71,9 +71,19 @@ internal sealed partial class QueueItemViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSubtitleStatus))]
-    private string? _subtitleStatusText;
+    [NotifyPropertyChangedFor(nameof(SubtitleStatusText))]
+    private SubtitleResultState _subtitleResultState = SubtitleResultState.None;
 
-    public bool HasSubtitleStatus => !string.IsNullOrEmpty(SubtitleStatusText);
+    public bool HasSubtitleStatus => SubtitleResultState != SubtitleResultState.None;
+
+    public string SubtitleStatusText => SubtitleResultState switch
+    {
+        SubtitleResultState.Saved => LocalizationService.Get("Status.SubtitlesSaved"),
+        SubtitleResultState.NoSubtitlesAvailable => LocalizationService.Get("Status.NoSubtitlesAvailable"),
+        SubtitleResultState.NoSubtitlesAvailableLanguage => LocalizationService.Get("Status.NoSubtitlesAvailableLanguage"),
+        SubtitleResultState.ConversionRequiresFfmpeg => LocalizationService.Get("Status.SubtitleConversionRequiresFfmpeg"),
+        _ => string.Empty
+    };
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRetry))]
@@ -134,6 +144,7 @@ internal sealed partial class QueueItemViewModel : ObservableObject
         OnPropertyChanged(nameof(OptionsText));
         OnPropertyChanged(nameof(StatusDisplayText));
         OnPropertyChanged(nameof(TransferDetailText));
+        OnPropertyChanged(nameof(SubtitleStatusText));
     }
 
     public void ApplyProgress(DownloadProgress progress)
@@ -148,7 +159,7 @@ internal sealed partial class QueueItemViewModel : ObservableObject
         Progress = 0;
         BytesPerSecond = null;
         Eta = null;
-        SubtitleStatusText = null;
+        SubtitleResultState = SubtitleResultState.None;
     }
 
     partial void OnStateChanged(QueueItemState value)

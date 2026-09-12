@@ -860,21 +860,13 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
                 return;
         }
 
-        // Subtitles are best-effort: declining FFmpeg here keeps the subtitle in its
-        // original format (often already SRT, otherwise VTT) instead of cancelling the
-        // whole download. ClipPull never installs FFmpeg for subtitles silently.
-        if (SubtitleModeIndex != 0 && !needsFfmpeg && !_ffmpegManager.IsInstalled)
-        {
-            var confirm = new Wpf.Ui.Controls.MessageBox
-            {
-                Title = L("Dialog.SubtitleFfmpegTitle"),
-                Content = L("Dialog.SubtitleFfmpegMessage"),
-                PrimaryButtonText = L("Common.Continue"),
-                CloseButtonText = L("Dialog.KeepOriginalFormat")
-            };
-            if (await confirm.ShowDialogAsync() == Wpf.Ui.Controls.MessageBoxResult.Primary)
-                needsFfmpeg = true;
-        }
+        // If subtitles are requested and FFmpeg happens to already be installed
+        // (for this or any other reason), ensure it up front so the very first
+        // yt-dlp call can request SRT directly via --convert-subs. If FFmpeg is
+        // NOT installed, nothing is asked here -- yt-dlp is given the chance to
+        // produce SRT natively first, and FFmpeg is only ever offered afterward,
+        // per item, if a resulting sidecar still isn't SRT (see FinalizeSubtitlesAsync).
+        var subtitlesWantFfmpegIfAvailable = SubtitleModeIndex != 0 && _ffmpegManager.IsInstalled;
 
         _activeOperation = new CancellationTokenSource();
         var token = _activeOperation.Token;
@@ -895,13 +887,16 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
             var engine = await _engineManager.EnsureAsync(m => SetStatus("Status.PreparingTitle", m, InfoBarSeverity.Informational), token);
 
             string? ffmpegDirectory = null;
-            if (needsFfmpeg)
+            if (needsFfmpeg || subtitlesWantFfmpegIfAvailable)
             {
+                // Already installed: FfmpegManager.EnsureAsync returns the verified local
+                // directory immediately, with no network access.
                 var ffmpegProgress = new Progress<double>(v => SetActiveProgress(v));
                 ffmpegDirectory = await _ffmpegManager.EnsureAsync(m => SetStatus("Status.PreparingTitle", m, InfoBarSeverity.Informational), ffmpegProgress, token);
             }
 
             var settings = ReadSettings(ffmpegDirectory);
+            var subtitleConversion = new SubtitleConversionState { FfmpegDirectory = ffmpegDirectory };
             var workItems = Queue.ToList();
 
             for (var i = 0; i < workItems.Count; i++)
@@ -931,6 +926,7 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
                     catch (RequestedFormatUnavailableException formatError)
                     {
                         ffmpegDirectory = await EnsureAutoFallbackFfmpegAsync(token);
+                        subtitleConversion.FfmpegDirectory = ffmpegDirectory;
                         settings = ReadSettings(ffmpegDirectory);
                         item.ResetProgress();
                         SetStatus(new LocalizedMessage("Status.DownloadTitle", prefix),
@@ -945,6 +941,10 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
                             fallbackResult.SubtitleFiles);
                     }
 
+                    var subtitleState = SubtitleResultState.None;
+                    if (settings.SubtitleMode != SubtitleMode.Off)
+                        (result, subtitleState) = await FinalizeSubtitlesAsync(result, settings, subtitleConversion, token);
+
                     if (settings.SubtitleMode == SubtitleMode.SubtitlesOnly)
                     {
                         // MediaService already throws when nothing was found, so reaching
@@ -954,7 +954,7 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
                         item.CompletedFileCount = result.SubtitleFiles.Count;
                         item.DisplayText = string.Join(", ", result.SubtitleFiles.Select(Path.GetFileName));
                         item.DetailText = item.DisplayText;
-                        item.SubtitleStatusText = BuildSubtitleSavedStatus(result.SubtitleFiles);
+                        item.SubtitleResultState = subtitleState;
                     }
                     else if (result.Files.Count == 0 && settings.UseHistory)
                     {
@@ -973,13 +973,7 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
                         }
 
                         if (settings.SubtitleMode == SubtitleMode.WithMedia)
-                        {
-                            item.SubtitleStatusText = result.SubtitleFiles.Count > 0
-                                ? BuildSubtitleSavedStatus(result.SubtitleFiles)
-                                : L(settings.SubtitleLanguage == SubtitleLanguagePreference.All
-                                    ? "Status.NoSubtitlesAvailable"
-                                    : "Status.NoSubtitlesAvailableLanguage");
-                        }
+                            item.SubtitleResultState = subtitleState;
                     }
                 }
                 catch (OperationCanceledException)
@@ -1307,12 +1301,77 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
     private static LocalizedMessage FormatResultCount(int count, string singularKey, string pluralKey) =>
         new(count == 1 ? singularKey : pluralKey, count);
 
-    private static string BuildSubtitleSavedStatus(IReadOnlyList<string> subtitleFiles)
+    /// <summary>Tracks the FFmpeg decision for subtitle conversion across one download batch, so the
+    /// confirmation dialog is shown at most once and every item reuses the same answer.</summary>
+    private sealed class SubtitleConversionState
     {
-        var allSrt = subtitleFiles.Count > 0 &&
-            subtitleFiles.All(file => string.Equals(Path.GetExtension(file), ".srt", StringComparison.OrdinalIgnoreCase));
-        return L(allSrt ? "Status.SubtitlesSaved" : "Status.SubtitleConversionRequiresFfmpeg");
+        public string? FfmpegDirectory;
+        public bool Declined;
     }
+
+    private async Task<(DownloadResult Result, SubtitleResultState State)> FinalizeSubtitlesAsync(
+        DownloadResult result, DownloadSettings settings, SubtitleConversionState conversionState, CancellationToken cancellationToken)
+    {
+        if (result.SubtitleFiles.Count == 0)
+        {
+            return (result, settings.SubtitleLanguage == SubtitleLanguagePreference.All
+                ? SubtitleResultState.NoSubtitlesAvailable
+                : SubtitleResultState.NoSubtitlesAvailableLanguage);
+        }
+
+        var files = result.SubtitleFiles.ToList();
+        var needsConversion = files.Any(file => !IsSrt(file));
+
+        if (needsConversion && conversionState.FfmpegDirectory is null && !conversionState.Declined)
+        {
+            if (_ffmpegManager.IsInstalled)
+            {
+                // Became available since the batch started (e.g. a prior item's format
+                // fallback installed it); reuse it instead of asking again.
+                conversionState.FfmpegDirectory = await _ffmpegManager.EnsureAsync(_ => { }, null, cancellationToken);
+            }
+            else
+            {
+                var confirm = new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = L("Dialog.SubtitleFfmpegTitle"),
+                    Content = L("Dialog.SubtitleFfmpegMessage"),
+                    PrimaryButtonText = L("Common.Continue"),
+                    CloseButtonText = L("Dialog.KeepOriginalFormat")
+                };
+                if (await confirm.ShowDialogAsync() == Wpf.Ui.Controls.MessageBoxResult.Primary)
+                {
+                    var ffmpegProgress = new Progress<double>(SetActiveProgress);
+                    conversionState.FfmpegDirectory = await _ffmpegManager.EnsureAsync(
+                        m => SetStatus("Status.PreparingTitle", m, InfoBarSeverity.Informational), ffmpegProgress, cancellationToken);
+                    SetFfmpegState(DependencyState.UpToDate);
+                }
+                else
+                {
+                    conversionState.Declined = true;
+                }
+            }
+        }
+
+        if (needsConversion && conversionState.FfmpegDirectory is not null)
+        {
+            for (var i = 0; i < files.Count; i++)
+            {
+                if (IsSrt(files[i]))
+                    continue;
+
+                var converted = await MediaService.ConvertSubtitleToSrtAsync(conversionState.FfmpegDirectory, files[i], cancellationToken);
+                if (converted is not null)
+                    files[i] = converted;
+            }
+        }
+
+        var finalResult = new DownloadResult(result.Files, files);
+        var state = files.All(IsSrt) ? SubtitleResultState.Saved : SubtitleResultState.ConversionRequiresFfmpeg;
+        return (finalResult, state);
+    }
+
+    private static bool IsSrt(string path) => string.Equals(Path.GetExtension(path), ".srt", StringComparison.OrdinalIgnoreCase);
 
     private static string LocalizeDependencyState(DependencyState state) => L(state switch
     {

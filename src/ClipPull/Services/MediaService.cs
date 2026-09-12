@@ -165,9 +165,113 @@ internal sealed partial class MediaService
         else if (files.Count > 1)
             status?.Invoke(new("Service.FilesDownloadedMany", files.Count));
 
+        // The "Writing video subtitles to: ..." line is recorded before yt-dlp's own
+        // --convert-subs postprocessor runs; resolve each entry to whatever actually
+        // exists on disk now instead of trusting the pre-conversion name.
+        var resolvedSubtitleFiles = subtitleFiles
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(ResolveFinalSubtitlePath)
+            .Where(path => path is not null)
+            .Select(path => path!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         return new DownloadResult(
             files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-            subtitleFiles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+            resolvedSubtitleFiles);
+    }
+
+    /// <summary>
+    /// Resolves a subtitle path recorded from yt-dlp's own "Writing video subtitles to"
+    /// line to whatever actually exists on disk once post-processing has finished.
+    /// Never returns a path that does not exist.
+    /// </summary>
+    internal static string? ResolveFinalSubtitlePath(string recordedPath)
+    {
+        if (string.Equals(Path.GetExtension(recordedPath), ".srt", StringComparison.OrdinalIgnoreCase) &&
+            File.Exists(recordedPath))
+        {
+            return recordedPath;
+        }
+
+        var srtPath = Path.ChangeExtension(recordedPath, ".srt");
+        if (File.Exists(srtPath))
+            return srtPath;
+
+        return File.Exists(recordedPath) ? recordedPath : null;
+    }
+
+    /// <summary>
+    /// Converts one subtitle file to SRT using ClipPull's already-verified FFmpeg
+    /// installation, as a small local step run after the yt-dlp download instead of
+    /// re-invoking yt-dlp. Returns the new .srt path on success, or null if conversion
+    /// was not possible or failed -- in which case the original file is left untouched.
+    /// </summary>
+    internal static async Task<string?> ConvertSubtitleToSrtAsync(
+        string ffmpegDirectory, string subtitlePath, CancellationToken cancellationToken)
+    {
+        if (string.Equals(Path.GetExtension(subtitlePath), ".srt", StringComparison.OrdinalIgnoreCase))
+            return File.Exists(subtitlePath) ? subtitlePath : null;
+
+        if (!File.Exists(subtitlePath))
+            return null;
+
+        var targetPath = Path.ChangeExtension(subtitlePath, ".srt");
+        if (File.Exists(targetPath))
+            return targetPath;
+
+        var ffmpegExe = Path.Combine(ffmpegDirectory, "ffmpeg.exe");
+        if (!File.Exists(ffmpegExe))
+            return null;
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = ffmpegExe,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        // -n: never overwrite/prompt if the target already appeared from elsewhere.
+        Add(startInfo, "-nostdin", "-n", "-i", subtitlePath, targetPath);
+
+        var succeeded = false;
+        try
+        {
+            using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+            if (!process.Start())
+                return null;
+
+            using var registration = cancellationToken.Register(() => Kill(process));
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+            await Task.WhenAll(stdoutTask, stderrTask);
+
+            succeeded = process.ExitCode == 0 && File.Exists(targetPath) && new FileInfo(targetPath).Length > 0;
+        }
+        catch (OperationCanceledException)
+        {
+            succeeded = false;
+            throw;
+        }
+        catch
+        {
+            succeeded = false;
+        }
+        finally
+        {
+            if (!succeeded)
+            {
+                try { if (File.Exists(targetPath)) File.Delete(targetPath); } catch { }
+            }
+        }
+
+        if (!succeeded)
+            return null;
+
+        try { File.Delete(subtitlePath); } catch { /* best effort; the srt is what matters */ }
+        return targetPath;
     }
 
     public async Task<MediaPreview> PreviewAsync(

@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
+using ClipPull.Localization;
 
 namespace ClipPull.Services;
 
@@ -27,7 +28,7 @@ internal sealed class FfmpegManager
 
     public bool IsInstalled => TryGetInstalledDirectory(out _);
 
-    public async Task<string> EnsureAsync(Action<string>? status, IProgress<double>? progress, CancellationToken cancellationToken)
+    public async Task<string> EnsureAsync(Action<LocalizedMessage>? status, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
         try
@@ -36,14 +37,14 @@ internal sealed class FfmpegManager
 
             if (TryGetInstalledDirectory(out var installedDirectory))
             {
-                status?.Invoke("FFmpeg local prêt.");
+                status?.Invoke(new("Service.FfmpegLocalReady"));
                 return installedDirectory;
             }
 
             ApprovedRelease release;
             try
             {
-                status?.Invoke("Vérification de la version FFmpeg approuvée...");
+                status?.Invoke(new("Service.FfmpegCheckingApproved"));
                 release = await GetApprovedReleaseAsync(cancellationToken);
             }
             catch (OperationCanceledException)
@@ -53,7 +54,7 @@ internal sealed class FfmpegManager
             catch
             {
                 release = GetBootstrapRelease();
-                status?.Invoke("Manifest indisponible; utilisation de la version FFmpeg de secours vérifiée.");
+                status?.Invoke(new("Service.FfmpegManifestFallback"));
             }
 
             return await InstallReleaseAsync(release, status, progress, cancellationToken);
@@ -64,36 +65,36 @@ internal sealed class FfmpegManager
         }
     }
 
-    public async Task<string> UpdateInstalledAsync(Action<string>? status, IProgress<double>? progress, CancellationToken cancellationToken)
+    public async Task<string> UpdateInstalledAsync(Action<LocalizedMessage>? status, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         if (!TryGetInstalledDirectory(out _))
         {
-            status?.Invoke("FFmpeg non installé; aucune mise à jour nécessaire.");
-            return "FFmpeg non installé";
+            status?.Invoke(new("Service.FfmpegNotInstalledNoUpdate"));
+            return LocalizationService.Get("Service.FfmpegNotInstalled");
         }
 
         await _gate.WaitAsync(cancellationToken);
         try
         {
             if (!TryGetInstalledDirectory(out var currentDirectory))
-                return "FFmpeg non installé";
+                return LocalizationService.Get("Service.FfmpegNotInstalled");
 
-            status?.Invoke("Vérification du manifeste FFmpeg approuvé...");
+            status?.Invoke(new("Service.FfmpegCheckingManifest"));
             var release = await GetApprovedReleaseAsync(cancellationToken);
             var currentVersion = Path.GetFileName(currentDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 
             if (string.Equals(currentVersion, release.Version, StringComparison.OrdinalIgnoreCase))
             {
                 await WriteActiveVersionAsync(release.Version, cancellationToken);
-                status?.Invoke("FFmpeg à jour.");
-                return "FFmpeg à jour";
+                status?.Invoke(new("Service.FfmpegUpToDate"));
+                return LocalizationService.Get("Service.FfmpegUpToDate");
             }
 
-            status?.Invoke($"Mise à jour FFmpeg {currentVersion} → {release.Version}...");
+            status?.Invoke(new("Service.FfmpegUpdating", currentVersion, release.Version));
             var installed = await InstallReleaseAsync(release, status, progress, cancellationToken);
             CleanupOldVersions(installed);
-            status?.Invoke("FFmpeg mis à jour.");
-            return "FFmpeg à jour";
+            status?.Invoke(new("Service.FfmpegUpdated"));
+            return LocalizationService.Get("Service.FfmpegUpToDate");
         }
         finally
         {
@@ -105,28 +106,28 @@ internal sealed class FfmpegManager
     {
         var json = await Http.GetStringAsync(ManifestUrl, cancellationToken);
         var manifest = JsonSerializer.Deserialize<DependencyManifest>(json, ManifestJsonOptions)
-            ?? throw new InvalidOperationException("Le manifeste de dépendances est vide.");
+            ?? throw new LocalizedException("Service.FfmpegManifestEmpty");
 
         if (manifest.SchemaVersion != 1 || manifest.Ffmpeg is null)
-            throw new InvalidOperationException("Le manifeste de dépendances n'est pas compatible.");
+            throw new LocalizedException("Service.FfmpegManifestIncompatible");
 
         var version = manifest.Ffmpeg.Version?.Trim() ?? string.Empty;
         var archiveUrl = manifest.Ffmpeg.ArchiveUrl?.Trim() ?? string.Empty;
         var sha256 = manifest.Ffmpeg.Sha256?.Trim().ToLowerInvariant() ?? string.Empty;
 
         if (!IsSafeVersion(version))
-            throw new InvalidOperationException("Version FFmpeg invalide dans le manifeste.");
+            throw new LocalizedException("Service.FfmpegVersionInvalid");
         if (!IsAllowedArchiveUrl(archiveUrl))
-            throw new InvalidOperationException("Source FFmpeg non autorisée dans le manifeste.");
+            throw new LocalizedException("Service.FfmpegSourceInvalid");
         if (!IsSha256(sha256))
-            throw new InvalidOperationException("SHA-256 FFmpeg invalide dans le manifeste.");
+            throw new LocalizedException("Service.FfmpegShaInvalid");
 
         return new ApprovedRelease(version, archiveUrl, sha256);
     }
 
     private async Task<string> InstallReleaseAsync(
         ApprovedRelease release,
-        Action<string>? status,
+        Action<LocalizedMessage>? status,
         IProgress<double>? progress,
         CancellationToken cancellationToken)
     {
@@ -137,7 +138,7 @@ internal sealed class FfmpegManager
 
         try
         {
-            status?.Invoke($"Téléchargement de FFmpeg {release.Version} (~140 Mo)...");
+            status?.Invoke(new("Service.FfmpegDownloading", release.Version));
             using var response = await Http.GetAsync(release.ArchiveUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             response.EnsureSuccessStatusCode();
             var total = response.Content.Headers.ContentLength;
@@ -160,10 +161,10 @@ internal sealed class FfmpegManager
                 }
             }
 
-            status?.Invoke("Vérification SHA-256 de FFmpeg...");
+            status?.Invoke(new("Service.FfmpegVerifying"));
             var hash = await ComputeSha256Async(tempZip, cancellationToken);
             if (!string.Equals(hash, release.Sha256, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("La vérification SHA-256 de FFmpeg a échoué. L'ancienne version a été conservée.");
+                throw new LocalizedException("Service.FfmpegVerificationFailed");
 
             Directory.CreateDirectory(tempExtract);
             using (var archive = ZipFile.OpenRead(tempZip))
@@ -173,7 +174,7 @@ internal sealed class FfmpegManager
             }
 
             if (!File.Exists(Path.Combine(tempExtract, "ffmpeg.exe")) || !File.Exists(Path.Combine(tempExtract, "ffprobe.exe")))
-                throw new InvalidOperationException("L'archive FFmpeg vérifiée ne contient pas les exécutables attendus.");
+                throw new LocalizedException("Service.FfmpegArchiveMissingBinaries");
 
             Directory.CreateDirectory(targetDirectory);
             File.Move(Path.Combine(tempExtract, "ffmpeg.exe"), Path.Combine(targetDirectory, "ffmpeg.exe"), true);
@@ -184,7 +185,7 @@ internal sealed class FfmpegManager
             await WriteActiveVersionAsync(release.Version, cancellationToken);
 
             progress?.Report(100);
-            status?.Invoke("FFmpeg prêt.");
+            status?.Invoke(new("Service.FfmpegReady"));
             return targetDirectory;
         }
         finally
@@ -285,7 +286,7 @@ internal sealed class FfmpegManager
         var entry = archive.Entries.FirstOrDefault(e =>
             e.FullName.Replace('\\', '/').EndsWith($"/bin/{fileName}", StringComparison.OrdinalIgnoreCase));
         if (entry is null)
-            throw new InvalidOperationException($"{fileName} est absent de l'archive FFmpeg.");
+            throw new LocalizedException("Service.FfmpegFileMissing", fileName);
         entry.ExtractToFile(destination, true);
     }
 
@@ -322,7 +323,7 @@ internal sealed class FfmpegManager
     private static HttpClient CreateClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipPull/0.3.1 (+https://github.com/Sd-tech-Sol/ClipPull)");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipPull/0.5.0 (+https://github.com/Sd-tech-Sol/ClipPull)");
         return client;
     }
 

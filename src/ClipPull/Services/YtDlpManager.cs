@@ -2,6 +2,7 @@ using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using ClipPull.Localization;
 
 namespace ClipPull.Services;
 
@@ -20,14 +21,14 @@ internal sealed partial class YtDlpManager
     public string EnginePath => Path.Combine(_engineDirectory, "yt-dlp.exe");
     private string HashPath => Path.Combine(_engineDirectory, "yt-dlp.sha256");
 
-    public async Task<string> EnsureAsync(Action<string>? status, CancellationToken cancellationToken)
+    public async Task<string> EnsureAsync(Action<LocalizedMessage>? status, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(_engineDirectory);
 
         string? latestHash;
         try
         {
-            status?.Invoke("Vérification du moteur yt-dlp...");
+            status?.Invoke(new("Service.YtDlpChecking"));
             var sums = await Http.GetStringAsync(ChecksumsUrl, cancellationToken);
             latestHash = ParseYtDlpHash(sums);
         }
@@ -39,15 +40,15 @@ internal sealed partial class YtDlpManager
         {
             if (await HasValidCachedEngineAsync(cancellationToken))
             {
-                status?.Invoke("Moteur local vérifié.");
+                status?.Invoke(new("Service.YtDlpLocalVerified"));
                 return EnginePath;
             }
 
-            throw new InvalidOperationException("Impossible de joindre la release officielle de yt-dlp et aucun moteur local vérifié n'est disponible.");
+            throw new LocalizedException("Service.YtDlpUnavailable");
         }
 
         if (latestHash is null)
-            throw new InvalidOperationException("Impossible de lire le checksum officiel de yt-dlp.");
+            throw new LocalizedException("Service.YtDlpChecksumReadFailed");
 
         if (File.Exists(EnginePath) && File.Exists(HashPath))
         {
@@ -57,13 +58,13 @@ internal sealed partial class YtDlpManager
                 var actualHash = await ComputeSha256Async(EnginePath, cancellationToken);
                 if (string.Equals(actualHash, latestHash, StringComparison.OrdinalIgnoreCase))
                 {
-                    status?.Invoke("Moteur yt-dlp à jour.");
+                    status?.Invoke(new("Service.YtDlpUpToDate"));
                     return EnginePath;
                 }
             }
         }
 
-        status?.Invoke("Téléchargement du moteur yt-dlp officiel...");
+        status?.Invoke(new("Service.YtDlpDownloading"));
         var tempPath = Path.Combine(_engineDirectory, $"yt-dlp-{Guid.NewGuid():N}.tmp");
 
         try
@@ -74,14 +75,14 @@ internal sealed partial class YtDlpManager
                 await source.CopyToAsync(destination, cancellationToken);
             }
 
-            status?.Invoke("Vérification SHA-256 du moteur...");
+            status?.Invoke(new("Service.YtDlpVerifying"));
             var downloadedHash = await ComputeSha256Async(tempPath, cancellationToken);
             if (!string.Equals(downloadedHash, latestHash, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("La vérification SHA-256 de yt-dlp a échoué. Le moteur n'a pas été installé.");
+                throw new LocalizedException("Service.YtDlpVerificationFailed");
 
             File.Move(tempPath, EnginePath, overwrite: true);
             await File.WriteAllTextAsync(HashPath, latestHash, cancellationToken);
-            status?.Invoke("Moteur yt-dlp prêt.");
+            status?.Invoke(new("Service.YtDlpReady"));
             return EnginePath;
         }
         finally
@@ -144,7 +145,7 @@ internal sealed partial class YtDlpManager
         {
             Timeout = TimeSpan.FromMinutes(3)
         };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipPull/0.3.1 (+https://github.com/Sd-tech-Sol/ClipPull)");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipPull/0.5.0 (+https://github.com/Sd-tech-Sol/ClipPull)");
         return client;
     }
 

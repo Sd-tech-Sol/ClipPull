@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Windows.Media.Imaging;
 using Clipboard = System.Windows.Clipboard;
 using ClipPull.Models;
+using ClipPull.Localization;
 using ClipPull.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,7 +15,7 @@ using Wpf.Ui.Controls;
 
 namespace ClipPull.ViewModels;
 
-internal sealed partial class MainViewModel : ObservableObject
+internal sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private static readonly Regex UrlRegex = new(
         "https?://[^\\s<>\"']+",
@@ -44,21 +45,17 @@ internal sealed partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(IsQueueEmpty));
             OnPropertyChanged(nameof(QueueSummaryText));
         };
+        LocalizationService.LanguageChanged += OnLanguageChanged;
     }
 
     public ObservableCollection<QueueItemViewModel> Queue { get; } = [];
 
     public bool IsQueueEmpty => Queue.Count == 0;
 
-    public string QueueSummaryText => Queue.Count == 1 ? "1 élément" : $"{Queue.Count} éléments";
+    public string QueueSummaryText => L(Queue.Count == 1 ? "Queue.ItemOne" : "Queue.ItemMany", Queue.Count);
 
     public IReadOnlyList<string> Browsers { get; } =
         ["Chrome", "Edge", "Firefox", "Brave", "Chromium", "Opera", "Vivaldi"];
-
-    public IReadOnlyList<string> FormatOptions { get; } = ["Vidéo", "Audio M4A", "Audio MP3"];
-
-    public IReadOnlyList<string> QualityOptions { get; } =
-        ["Auto (rapide)", "Meilleure", "1080p max", "720p max", "480p max", "Petit fichier"];
 
     [ObservableProperty]
     private string _urlsText = string.Empty;
@@ -75,7 +72,7 @@ internal sealed partial class MainViewModel : ObservableObject
 
     public bool HasLinks => LinkCount > 0;
 
-    public string LinkSummaryText => LinkCount == 1 ? "1 lien prêt" : $"{LinkCount} liens prêts";
+    public string LinkSummaryText => L(LinkCount == 1 ? "Links.ReadyOne" : "Links.ReadyMany", LinkCount);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OutputFolderDisplay))]
@@ -93,7 +90,8 @@ internal sealed partial class MainViewModel : ObservableObject
                 return OutputFolder;
 
             var relative = Path.GetRelativePath(downloads, OutputFolder);
-            return relative == "." ? "Téléchargements" : $"Téléchargements\\{relative}";
+            var downloadsLabel = L("Output.DownloadsFolder");
+            return relative == "." ? downloadsLabel : $"{downloadsLabel}\\{relative}";
         }
     }
 
@@ -167,7 +165,7 @@ internal sealed partial class MainViewModel : ObservableObject
 
     public SymbolRegular PrimaryActionIcon => IsBusy ? SymbolRegular.Dismiss24 : SymbolRegular.ArrowDownload24;
 
-    public string PrimaryActionLabel => IsBusy ? "Annuler" : "Télécharger tout";
+    public string PrimaryActionLabel => L(IsBusy ? "Common.Cancel" : "Options.DownloadAll");
 
     public bool CanUsePrimaryAction => IsBusy || HasLinks;
 
@@ -181,35 +179,55 @@ internal sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _previewTitle = string.Empty;
 
-    [ObservableProperty]
-    private string _previewMeta = string.Empty;
+    private double? _previewDurationSeconds;
+    private int? _previewPlaylistCount;
+
+    public string PreviewMeta
+    {
+        get
+        {
+            if (!IsPreviewVisible && _previewDurationSeconds is null && _previewPlaylistCount is null)
+                return string.Empty;
+
+            var duration = _previewDurationSeconds is > 0
+                ? FormatDuration(_previewDurationSeconds.Value)
+                : L("Status.UnknownDuration");
+            var playlist = _previewPlaylistCount switch
+            {
+                1 => L("Status.PreviewPlaylistOne"),
+                > 1 => L("Status.PreviewPlaylistMany", _previewPlaylistCount.Value),
+                _ => string.Empty
+            };
+            return $"{_previewPlatform} • {duration}{playlist}";
+        }
+    }
+
+    private string _previewPlatform = string.Empty;
 
     [ObservableProperty]
     private BitmapImage? _previewThumbnail;
 
     // Dependency chips (kept unobtrusive; full detail lives in the advanced panel).
-    [ObservableProperty]
-    private string _ytDlpStatusText = "Vérification...";
+    private DependencyState _ytDlpState = DependencyState.Checking;
+    private DependencyState _ffmpegState = DependencyState.NotInstalled;
 
-    partial void OnYtDlpStatusTextChanged(string value) => OnPropertyChanged(nameof(DependencySummaryText));
+    public string YtDlpStatusText => LocalizeDependencyState(_ytDlpState);
 
-    [ObservableProperty]
-    private string _ffmpegStatusText = "Non vérifié";
-
-    partial void OnFfmpegStatusTextChanged(string value) => OnPropertyChanged(nameof(DependencySummaryText));
+    public string FfmpegStatusText => LocalizeDependencyState(_ffmpegState);
 
     public string DependencySummaryText
     {
         get
         {
-            if (YtDlpStatusText == "À jour" && FfmpegStatusText is "À jour" or "Non installé")
-                return "Composants prêts";
-            if (YtDlpStatusText == "Hors ligne")
-                return "yt-dlp hors ligne";
-            if (FfmpegStatusText == "Indisponible")
-                return "FFmpeg indisponible";
+            if (_ytDlpState == DependencyState.UpToDate &&
+                _ffmpegState is DependencyState.UpToDate or DependencyState.NotInstalled)
+                return L("Dependency.ComponentsReady");
+            if (_ytDlpState == DependencyState.Offline)
+                return L("Dependency.YtDlpOffline");
+            if (_ffmpegState == DependencyState.Unavailable)
+                return L("Dependency.FfmpegUnavailable");
 
-            return "Vérification...";
+            return L("Dependency.Checking");
         }
     }
 
@@ -217,19 +235,56 @@ internal sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isInfoBarOpen;
 
-    [ObservableProperty]
-    private string _infoBarTitle = "Prêt";
+    private LocalizedMessage _infoBarTitleResource = new("Status.ReadyTitle");
+    private LocalizedMessage _infoBarMessageResource = new("Status.ReadyMessage");
+    private string? _infoBarRawMessage;
 
-    [ObservableProperty]
-    private string _infoBarMessage = "Colle des liens ou glisse un fichier .txt.";
+    public string InfoBarTitle => _infoBarTitleResource.Resolve();
+
+    public string InfoBarMessage => _infoBarRawMessage ?? _infoBarMessageResource.Resolve();
 
     [ObservableProperty]
     private InfoBarSeverity _infoBarSeverity = InfoBarSeverity.Informational;
 
-    private void SetStatus(string title, string message, InfoBarSeverity severity)
+    private void SetStatus(string titleKey, string messageKey, InfoBarSeverity severity, params object[] messageArguments)
     {
-        InfoBarTitle = title;
-        InfoBarMessage = message;
+        _infoBarTitleResource = new LocalizedMessage(titleKey);
+        _infoBarMessageResource = new LocalizedMessage(messageKey, messageArguments);
+        _infoBarRawMessage = null;
+        OnPropertyChanged(nameof(InfoBarTitle));
+        OnPropertyChanged(nameof(InfoBarMessage));
+        InfoBarSeverity = severity;
+        IsInfoBarOpen = true;
+    }
+
+    private void SetStatus(string titleKey, LocalizedMessage message, InfoBarSeverity severity)
+    {
+        _infoBarTitleResource = new LocalizedMessage(titleKey);
+        _infoBarMessageResource = message;
+        _infoBarRawMessage = null;
+        OnPropertyChanged(nameof(InfoBarTitle));
+        OnPropertyChanged(nameof(InfoBarMessage));
+        InfoBarSeverity = severity;
+        IsInfoBarOpen = true;
+    }
+
+    private void SetStatus(LocalizedMessage title, LocalizedMessage message, InfoBarSeverity severity)
+    {
+        _infoBarTitleResource = title;
+        _infoBarMessageResource = message;
+        _infoBarRawMessage = null;
+        OnPropertyChanged(nameof(InfoBarTitle));
+        OnPropertyChanged(nameof(InfoBarMessage));
+        InfoBarSeverity = severity;
+        IsInfoBarOpen = true;
+    }
+
+    private void SetRawStatus(string titleKey, string message, InfoBarSeverity severity)
+    {
+        _infoBarTitleResource = new LocalizedMessage(titleKey);
+        _infoBarRawMessage = message;
+        OnPropertyChanged(nameof(InfoBarTitle));
+        OnPropertyChanged(nameof(InfoBarMessage));
         InfoBarSeverity = severity;
         IsInfoBarOpen = true;
     }
@@ -252,9 +307,9 @@ internal sealed partial class MainViewModel : ObservableObject
         {
             try
             {
-                YtDlpStatusText = "Vérification...";
+                SetYtDlpState(DependencyState.Checking);
                 await _engineManager.EnsureAsync(_ => { }, token);
-                YtDlpStatusText = "À jour";
+                SetYtDlpState(DependencyState.UpToDate);
             }
             catch (OperationCanceledException)
             {
@@ -262,21 +317,21 @@ internal sealed partial class MainViewModel : ObservableObject
             }
             catch
             {
-                YtDlpStatusText = "Hors ligne";
+                SetYtDlpState(DependencyState.Offline);
             }
 
             try
             {
                 if (_ffmpegManager.IsInstalled)
                 {
-                    FfmpegStatusText = "Vérification...";
+                    SetFfmpegState(DependencyState.Checking);
                     var progress = new Progress<double>(_ => { });
                     await _ffmpegManager.UpdateInstalledAsync(_ => { }, progress, token);
-                    FfmpegStatusText = "À jour";
+                    SetFfmpegState(DependencyState.UpToDate);
                 }
                 else
                 {
-                    FfmpegStatusText = "Non installé";
+                    SetFfmpegState(DependencyState.NotInstalled);
                 }
             }
             catch (OperationCanceledException)
@@ -284,7 +339,7 @@ internal sealed partial class MainViewModel : ObservableObject
             }
             catch
             {
-                FfmpegStatusText = "Indisponible";
+                SetFfmpegState(DependencyState.Unavailable);
             }
         }
         finally
@@ -307,11 +362,11 @@ internal sealed partial class MainViewModel : ObservableObject
             if (urls.Count > 0)
                 AddUrls(urls);
             else
-                SetStatus("Presse-papiers", "Le presse-papiers ne contient aucun lien web valide.", InfoBarSeverity.Informational);
+                SetStatus("Status.ClipboardTitle", "Status.ClipboardNoLinks", InfoBarSeverity.Informational);
         }
         catch
         {
-            SetStatus("Presse-papiers", "Impossible de lire le presse-papiers.", InfoBarSeverity.Warning);
+            SetStatus("Status.ClipboardTitle", "Status.ClipboardReadFailed", InfoBarSeverity.Warning);
         }
     }
 
@@ -337,8 +392,8 @@ internal sealed partial class MainViewModel : ObservableObject
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "Importer une liste de liens",
-            Filter = "Fichiers texte (*.txt)|*.txt|Tous les fichiers (*.*)|*.*",
+            Title = L("Dialog.ImportTitle"),
+            Filter = L("Dialog.TextFilesFilter"),
             CheckFileExists = true,
             Multiselect = false
         };
@@ -352,16 +407,18 @@ internal sealed partial class MainViewModel : ObservableObject
             var urls = GetUniqueUrls(text);
             if (urls.Count == 0)
             {
-                SetStatus("Import", "Le fichier ne contient aucun lien web valide.", InfoBarSeverity.Informational);
+                SetStatus("Status.ImportTitle", "Status.ImportNoLinks", InfoBarSeverity.Informational);
                 return;
             }
 
             AddUrls(urls);
-            SetStatus("Import", $"{urls.Count} lien(s) importé(s) du fichier.", InfoBarSeverity.Success);
+            SetStatus("Status.ImportTitle",
+                urls.Count == 1 ? "Status.ImportedFromFileOne" : "Status.ImportedFromFileMany",
+                InfoBarSeverity.Success, urls.Count);
         }
         catch (Exception ex)
         {
-            SetStatus("Import impossible", ex.Message, InfoBarSeverity.Error);
+            SetRawStatus("Status.ImportFailedTitle", ex.Message, InfoBarSeverity.Error);
         }
     }
 
@@ -383,12 +440,13 @@ internal sealed partial class MainViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                SetStatus("Import impossible", $"{Path.GetFileName(path)} : {ex.Message}", InfoBarSeverity.Error);
+                SetStatus("Status.ImportFailedTitle", "Status.FileError", InfoBarSeverity.Error, Path.GetFileName(path), ex.Message);
             }
         }
 
         if (total > 0)
-            SetStatus("Import", $"{total} lien(s) importé(s).", InfoBarSeverity.Success);
+            SetStatus("Status.ImportTitle", total == 1 ? "Status.ImportedOne" : "Status.ImportedMany",
+                InfoBarSeverity.Success, total);
     }
 
     public void AddDroppedText(string text)
@@ -407,7 +465,11 @@ internal sealed partial class MainViewModel : ObservableObject
         HasErrors = false;
         IsPreviewVisible = false;
         PreviewThumbnail = null;
-        SetStatus("Prêt", "Colle des liens ou glisse un fichier .txt.", InfoBarSeverity.Informational);
+        _previewDurationSeconds = null;
+        _previewPlaylistCount = null;
+        _previewPlatform = string.Empty;
+        OnPropertyChanged(nameof(PreviewMeta));
+        SetStatus("Status.ReadyTitle", "Status.ReadyMessage", InfoBarSeverity.Informational);
     }
 
     [RelayCommand]
@@ -419,7 +481,7 @@ internal sealed partial class MainViewModel : ObservableObject
         var url = GetUniqueUrls(UrlsText).FirstOrDefault();
         if (url is null)
         {
-            SetStatus("Aperçu", "Ajoute un lien avant de demander un aperçu.", InfoBarSeverity.Informational);
+            SetStatus("Status.PreviewTitle", "Status.PreviewNeedsLink", InfoBarSeverity.Informational);
             return;
         }
 
@@ -428,25 +490,26 @@ internal sealed partial class MainViewModel : ObservableObject
 
         try
         {
-            var engine = await _engineManager.EnsureAsync(m => SetStatus("Aperçu", m, InfoBarSeverity.Informational), token);
+            var engine = await _engineManager.EnsureAsync(m => SetStatus("Status.PreviewTitle", m, InfoBarSeverity.Informational), token);
             var browser = UseBrowserCookies ? SelectedBrowser : null;
-            SetStatus("Aperçu", "Analyse du lien...", InfoBarSeverity.Informational);
+            SetStatus("Status.PreviewTitle", "Status.AnalyzingLink", InfoBarSeverity.Informational);
             var preview = await _mediaService.PreviewAsync(engine, url, browser, token);
 
             PreviewTitle = preview.Title;
-            var duration = preview.DurationSeconds is > 0 ? FormatDuration(preview.DurationSeconds.Value) : "durée inconnue";
-            var playlist = preview.PlaylistCount is > 0 ? $" • playlist : {preview.PlaylistCount} élément(s)" : string.Empty;
-            PreviewMeta = $"{preview.Platform} • {duration}{playlist}";
+            _previewDurationSeconds = preview.DurationSeconds;
+            _previewPlaylistCount = preview.PlaylistCount;
+            _previewPlatform = preview.Platform;
+            OnPropertyChanged(nameof(PreviewMeta));
             await LoadThumbnailAsync(preview.ThumbnailUrl, token);
             IsPreviewVisible = true;
-            SetStatus("Aperçu", "Aperçu chargé.", InfoBarSeverity.Success);
+            SetStatus("Status.PreviewTitle", "Status.PreviewLoaded", InfoBarSeverity.Success);
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception ex)
         {
-            SetStatus("Aperçu impossible", GetUsefulError(ex.Message), InfoBarSeverity.Warning);
+            SetRawStatus("Status.PreviewFailedTitle", GetUsefulError(ex), InfoBarSeverity.Warning);
         }
         finally
         {
@@ -514,14 +577,14 @@ internal sealed partial class MainViewModel : ObservableObject
     {
         if (urls.Count == 0)
         {
-            SetStatus("Aucun lien", "Ajoute au moins un lien web valide.", InfoBarSeverity.Informational);
+            SetStatus("Status.NoLinkTitle", "Status.NoValidLink", InfoBarSeverity.Informational);
             return;
         }
 
         var folder = OutputFolder.Trim();
         if (string.IsNullOrWhiteSpace(folder))
         {
-            SetStatus("Dossier requis", "Choisis un dossier de destination.", InfoBarSeverity.Informational);
+            SetStatus("Status.FolderRequiredTitle", "Status.ChooseDestination", InfoBarSeverity.Informational);
             return;
         }
 
@@ -529,10 +592,10 @@ internal sealed partial class MainViewModel : ObservableObject
         {
             var confirm = new Wpf.Ui.Controls.MessageBox
             {
-                Title = "Confirmer les playlists",
-                Content = $"Le mode playlist est activé. ClipPull autorisera jusqu'à {PlaylistLimit} éléments par lien de playlist.\n\nContinuer?",
-                PrimaryButtonText = "Continuer",
-                CloseButtonText = "Annuler"
+                Title = L("Dialog.PlaylistTitle"),
+                Content = L("Dialog.PlaylistMessage", PlaylistLimit),
+                PrimaryButtonText = L("Common.Continue"),
+                CloseButtonText = L("Common.Cancel")
             };
             if (await confirm.ShowDialogAsync() != Wpf.Ui.Controls.MessageBoxResult.Primary)
                 return;
@@ -543,10 +606,10 @@ internal sealed partial class MainViewModel : ObservableObject
         {
             var confirm = new Wpf.Ui.Controls.MessageBox
             {
-                Title = "FFmpeg requis",
-                Content = "Cette option nécessite FFmpeg. Au premier usage, ClipPull téléchargera environ 140 Mo depuis le projet BtbN/FFmpeg-Builds, puis vérifiera le SHA-256 avant extraction.\n\nContinuer?",
-                PrimaryButtonText = "Continuer",
-                CloseButtonText = "Annuler"
+                Title = L("Dialog.FfmpegTitle"),
+                Content = L("Dialog.FfmpegMessage"),
+                PrimaryButtonText = L("Common.Continue"),
+                CloseButtonText = L("Common.Cancel")
             };
             if (await confirm.ShowDialogAsync() != Wpf.Ui.Controls.MessageBoxResult.Primary)
                 return;
@@ -567,14 +630,14 @@ internal sealed partial class MainViewModel : ObservableObject
         {
             Directory.CreateDirectory(folder);
             Directory.CreateDirectory(Path.GetDirectoryName(_archivePath)!);
-            SetStatus("Préparation", "Vérification des composants...", InfoBarSeverity.Informational);
-            var engine = await _engineManager.EnsureAsync(m => SetStatus("Préparation", m, InfoBarSeverity.Informational), token);
+            SetStatus("Status.PreparingTitle", "Status.CheckingComponents", InfoBarSeverity.Informational);
+            var engine = await _engineManager.EnsureAsync(m => SetStatus("Status.PreparingTitle", m, InfoBarSeverity.Informational), token);
 
             string? ffmpegDirectory = null;
             if (needsFfmpeg)
             {
                 var ffmpegProgress = new Progress<double>(v => SetActiveProgress(v));
-                ffmpegDirectory = await _ffmpegManager.EnsureAsync(m => SetStatus("Préparation", m, InfoBarSeverity.Informational), ffmpegProgress, token);
+                ffmpegDirectory = await _ffmpegManager.EnsureAsync(m => SetStatus("Status.PreparingTitle", m, InfoBarSeverity.Informational), ffmpegProgress, token);
             }
 
             var settings = ReadSettings(ffmpegDirectory);
@@ -585,7 +648,6 @@ internal sealed partial class MainViewModel : ObservableObject
                 var url = urls[i];
                 var item = Queue[i];
                 item.State = QueueItemState.Active;
-                item.StatusText = "En cours...";
                 item.Progress = 0;
 
                 var prefix = $"{i + 1}/{urls.Count}";
@@ -595,20 +657,19 @@ internal sealed partial class MainViewModel : ObservableObject
                 {
                     var result = await _mediaService.DownloadAsync(
                         engine, url, folder, settings, progress,
-                        m => SetStatus($"Téléchargement {prefix}", m, InfoBarSeverity.Informational),
+                        m => SetStatus(new LocalizedMessage("Status.DownloadTitle", prefix), m, InfoBarSeverity.Informational),
                         token);
 
                     if (result.Files.Count == 0 && settings.UseHistory)
                     {
                         skipped++;
                         item.State = QueueItemState.AlreadyDownloaded;
-                        item.StatusText = "Déjà téléchargé";
                     }
                     else
                     {
                         succeeded++;
                         item.State = QueueItemState.Completed;
-                        item.StatusText = result.Files.Count > 1 ? $"Terminé ({result.Files.Count} fichiers)" : "Terminé";
+                        item.CompletedFileCount = result.Files.Count;
                         if (result.Files.Count > 0)
                         {
                             item.DisplayText = string.Join(", ", result.Files.Select(Path.GetFileName));
@@ -619,17 +680,16 @@ internal sealed partial class MainViewModel : ObservableObject
                 catch (OperationCanceledException)
                 {
                     item.State = QueueItemState.Cancelled;
-                    item.StatusText = "Annulé";
                     throw;
                 }
                 catch (Exception ex)
                 {
-                    var message = GetUsefulError(ex.Message);
+                    var message = GetUsefulError(ex);
                     _lastErrors.Add(new DownloadError(url, item.Platform, message));
                     item.State = QueueItemState.Failed;
-                    item.StatusText = "Échec";
                     item.DetailText = message;
-                    SetStatus($"Téléchargement {prefix}", "Échec; passage au suivant...", InfoBarSeverity.Warning);
+                    SetStatus(new LocalizedMessage("Status.DownloadTitle", prefix),
+                        new LocalizedMessage("Status.FailedContinue"), InfoBarSeverity.Warning);
                 }
             }
         }
@@ -639,12 +699,11 @@ internal sealed partial class MainViewModel : ObservableObject
             foreach (var item in Queue.Where(q => q.State == QueueItemState.Waiting))
             {
                 item.State = QueueItemState.Cancelled;
-                item.StatusText = "Non démarré";
             }
         }
         catch (Exception ex)
         {
-            SetStatus("Erreur", GetUsefulError(ex.Message), InfoBarSeverity.Error);
+            SetRawStatus("Common.Error", GetUsefulError(ex), InfoBarSeverity.Error);
         }
         finally
         {
@@ -656,15 +715,23 @@ internal sealed partial class MainViewModel : ObservableObject
 
         if (cancelled)
         {
-            SetStatus("File annulée", $"{succeeded} réussi(s), {skipped} déjà présent(s), {_lastErrors.Count} échec(s).", InfoBarSeverity.Warning);
+            SetStatus("Status.QueueCancelledTitle", "Status.SummaryWithErrors", InfoBarSeverity.Warning,
+                FormatResultCount(succeeded, "Status.SucceededOne", "Status.SucceededMany"),
+                FormatResultCount(skipped, "Status.AlreadyPresentOne", "Status.AlreadyPresentMany"),
+                FormatResultCount(_lastErrors.Count, "Status.FailedOne", "Status.FailedMany"));
         }
         else if (_lastErrors.Count == 0)
         {
-            SetStatus("Terminé", $"{succeeded} réussi(s), {skipped} déjà présent(s).", InfoBarSeverity.Success);
+            SetStatus("Status.CompletedTitle", "Status.SummaryNoErrors", InfoBarSeverity.Success,
+                FormatResultCount(succeeded, "Status.SucceededOne", "Status.SucceededMany"),
+                FormatResultCount(skipped, "Status.AlreadyPresentOne", "Status.AlreadyPresentMany"));
         }
         else
         {
-            SetStatus("Terminé avec erreurs", $"{succeeded} réussi(s), {skipped} déjà présent(s), {_lastErrors.Count} échec(s).", InfoBarSeverity.Warning);
+            SetStatus("Status.CompletedWithErrorsTitle", "Status.SummaryWithErrors", InfoBarSeverity.Warning,
+                FormatResultCount(succeeded, "Status.SucceededOne", "Status.SucceededMany"),
+                FormatResultCount(skipped, "Status.AlreadyPresentOne", "Status.AlreadyPresentMany"),
+                FormatResultCount(_lastErrors.Count, "Status.FailedOne", "Status.FailedMany"));
         }
     }
 
@@ -681,18 +748,18 @@ internal sealed partial class MainViewModel : ObservableObject
         if (_lastErrors.Count == 0)
             return;
 
-        var text = new StringBuilder("ClipPull - rapport d'erreurs\r\n\r\n");
+        var text = new StringBuilder(L("Status.ErrorReportHeading") + "\r\n\r\n");
         foreach (var error in _lastErrors)
             text.AppendLine($"[{error.Platform}] {error.Url}\r\n{error.Message}\r\n");
 
         try
         {
             Clipboard.SetText(text.ToString());
-            SetStatus("Copié", "Rapport d'erreurs copié dans le presse-papiers.", InfoBarSeverity.Success);
+            SetStatus("Status.CopiedTitle", "Status.ErrorReportCopied", InfoBarSeverity.Success);
         }
         catch
         {
-            SetStatus("Presse-papiers", "Impossible de copier le rapport d'erreurs.", InfoBarSeverity.Warning);
+            SetStatus("Status.ClipboardTitle", "Status.ErrorReportCopyFailed", InfoBarSeverity.Warning);
         }
     }
 
@@ -713,7 +780,7 @@ internal sealed partial class MainViewModel : ObservableObject
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
         {
-            Title = "Choisir le dossier de téléchargement",
+            Title = L("Output.ChooseFolderTitle"),
             InitialDirectory = Directory.Exists(OutputFolder) ? OutputFolder : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
         };
 
@@ -726,16 +793,16 @@ internal sealed partial class MainViewModel : ObservableObject
     {
         if (!File.Exists(_archivePath))
         {
-            SetStatus("Historique", "L'historique est déjà vide.", InfoBarSeverity.Informational);
+            SetStatus("Status.HistoryTitle", "Status.HistoryAlreadyEmpty", InfoBarSeverity.Informational);
             return;
         }
 
         var confirm = new Wpf.Ui.Controls.MessageBox
         {
-            Title = "Effacer l'historique",
-            Content = "Effacer l'historique local des téléchargements? Les fichiers déjà téléchargés ne seront pas supprimés.",
-            PrimaryButtonText = "Effacer",
-            CloseButtonText = "Annuler"
+            Title = L("Dialog.ClearHistoryTitle"),
+            Content = L("Dialog.ClearHistoryMessage"),
+            PrimaryButtonText = L("Common.Clear"),
+            CloseButtonText = L("Common.Cancel")
         };
 
         if (await confirm.ShowDialogAsync() != Wpf.Ui.Controls.MessageBoxResult.Primary)
@@ -744,11 +811,11 @@ internal sealed partial class MainViewModel : ObservableObject
         try
         {
             File.Delete(_archivePath);
-            SetStatus("Historique", "Historique local effacé.", InfoBarSeverity.Success);
+            SetStatus("Status.HistoryTitle", "Status.HistoryCleared", InfoBarSeverity.Success);
         }
         catch (Exception ex)
         {
-            SetStatus("Historique", ex.Message, InfoBarSeverity.Error);
+            SetRawStatus("Status.HistoryTitle", ex.Message, InfoBarSeverity.Error);
         }
     }
 
@@ -793,10 +860,7 @@ internal sealed partial class MainViewModel : ObservableObject
         {
             var url = urls[i];
             var platform = GetPlatform(url);
-            var options = FormatIndex == 0
-                ? $"{platform}  ·  {FormatOptions[FormatIndex]}  ·  {QualityOptions[QualityIndex]}"
-                : $"{platform}  ·  {FormatOptions[FormatIndex]}";
-            Queue.Add(new QueueItemViewModel(url, platform, ShortenUrl(url), options));
+            Queue.Add(new QueueItemViewModel(url, platform, ShortenUrl(url), FormatIndex, QualityIndex));
         }
     }
 
@@ -850,11 +914,15 @@ internal sealed partial class MainViewModel : ObservableObject
         return host.StartsWith("www.", StringComparison.Ordinal) ? host[4..] : host;
     }
 
-    private static string GetUsefulError(string message)
+    private static string GetUsefulError(Exception exception)
     {
+        if (exception is LocalizedException localized)
+            return localized.Message;
+
+        var message = exception.Message;
         var lines = message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return lines.LastOrDefault(line => line.Contains("ERROR", StringComparison.OrdinalIgnoreCase))
-            ?? lines.LastOrDefault() ?? "Échec du téléchargement.";
+            ?? lines.LastOrDefault() ?? L("Status.DownloadFailed");
     }
 
     private static string FormatDuration(double seconds)
@@ -862,4 +930,51 @@ internal sealed partial class MainViewModel : ObservableObject
         var span = TimeSpan.FromSeconds(seconds);
         return span.TotalHours >= 1 ? span.ToString(@"h\:mm\:ss") : span.ToString(@"m\:ss");
     }
+
+    private static string L(string key, params object[] arguments) => LocalizationService.Get(key, arguments);
+
+    private static LocalizedMessage FormatResultCount(int count, string singularKey, string pluralKey) =>
+        new(count == 1 ? singularKey : pluralKey, count);
+
+    private static string LocalizeDependencyState(DependencyState state) => L(state switch
+    {
+        DependencyState.UpToDate => "Dependency.UpToDate",
+        DependencyState.NotInstalled => "Dependency.NotInstalled",
+        DependencyState.Unavailable => "Dependency.Unavailable",
+        DependencyState.Offline => "Dependency.Offline",
+        _ => "Dependency.Checking"
+    });
+
+    private void SetYtDlpState(DependencyState state)
+    {
+        _ytDlpState = state;
+        OnPropertyChanged(nameof(YtDlpStatusText));
+        OnPropertyChanged(nameof(DependencySummaryText));
+    }
+
+    private void SetFfmpegState(DependencyState state)
+    {
+        _ffmpegState = state;
+        OnPropertyChanged(nameof(FfmpegStatusText));
+        OnPropertyChanged(nameof(DependencySummaryText));
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(QueueSummaryText));
+        OnPropertyChanged(nameof(LinkSummaryText));
+        OnPropertyChanged(nameof(OutputFolderDisplay));
+        OnPropertyChanged(nameof(PrimaryActionLabel));
+        OnPropertyChanged(nameof(PreviewMeta));
+        OnPropertyChanged(nameof(YtDlpStatusText));
+        OnPropertyChanged(nameof(FfmpegStatusText));
+        OnPropertyChanged(nameof(DependencySummaryText));
+        OnPropertyChanged(nameof(InfoBarTitle));
+        OnPropertyChanged(nameof(InfoBarMessage));
+
+        foreach (var item in Queue)
+            item.RefreshLocalization();
+    }
+
+    public void Dispose() => LocalizationService.LanguageChanged -= OnLanguageChanged;
 }

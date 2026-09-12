@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using ClipPull.Models;
+using ClipPull.Localization;
 
 namespace ClipPull.Services;
 
@@ -16,7 +17,7 @@ internal sealed partial class MediaService
         string outputDirectory,
         DownloadSettings settings,
         IProgress<double>? progress,
-        Action<string>? status,
+        Action<LocalizedMessage>? status,
         CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(outputDirectory);
@@ -61,10 +62,10 @@ internal sealed partial class MediaService
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         if (!process.Start())
-            throw new InvalidOperationException("Impossible de démarrer yt-dlp.");
+            throw new LocalizedException("Service.StartYtDlpFailed");
 
         using var cancellationRegistration = cancellationToken.Register(() => Kill(process));
-        status?.Invoke("Analyse du lien...");
+        status?.Invoke(new("Status.AnalyzingLink"));
 
         var stdoutTask = PumpAsync(process.StandardOutput, line =>
         {
@@ -83,7 +84,7 @@ internal sealed partial class MediaService
             if (match.Success && double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
             {
                 progress?.Report(Math.Clamp(percent, 0, 100));
-                status?.Invoke($"Téléchargement... {percent:0.#}%");
+                status?.Invoke(new("Queue.DownloadingProgress", percent));
             }
         }, cancellationToken);
 
@@ -108,15 +109,15 @@ internal sealed partial class MediaService
             lock (errors)
                 detail = string.Join(Environment.NewLine, errors.Where(x => !string.IsNullOrWhiteSpace(x)));
             if (string.IsNullOrWhiteSpace(detail))
-                detail = "yt-dlp a retourné une erreur sans détail.";
+                throw new LocalizedException("Service.YtDlpNoDetail");
             throw new InvalidOperationException(detail);
         }
 
         progress?.Report(100);
         if (archiveHit && files.Count == 0)
-            status?.Invoke("Déjà téléchargé selon l'historique local.");
+            status?.Invoke(new("Service.AlreadyDownloadedHistory"));
         else if (files.Count > 1)
-            status?.Invoke($"{files.Count} fichiers téléchargés.");
+            status?.Invoke(new("Service.FilesDownloadedMany", files.Count));
 
         return new DownloadResult(files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
     }
@@ -141,7 +142,7 @@ internal sealed partial class MediaService
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         if (!process.Start())
-            throw new InvalidOperationException("Impossible de démarrer yt-dlp.");
+            throw new LocalizedException("Service.StartYtDlpFailed");
 
         using var cancellationRegistration = cancellationToken.Register(() => Kill(process));
         var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
@@ -151,11 +152,15 @@ internal sealed partial class MediaService
         var error = await stderrTask;
 
         if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(json))
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(error) ? "Impossible d'obtenir l'aperçu." : error.Trim());
+            throw string.IsNullOrWhiteSpace(error)
+                ? new LocalizedException("Service.PreviewFailed")
+                : new InvalidOperationException(error.Trim());
 
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
-        var title = ReadString(root, "title") ?? "Sans titre";
+        var title = ReadString(root, "title");
+        var titleWasMissing = string.IsNullOrWhiteSpace(title);
+        title ??= LocalizationService.Get("Service.Untitled");
         var platform = ReadString(root, "extractor_key") ?? ReadString(root, "extractor") ?? "Web";
         var thumbnail = ReadString(root, "thumbnail");
         var duration = ReadDouble(root, "duration");
@@ -166,7 +171,7 @@ internal sealed partial class MediaService
             var first = entries[0];
             thumbnail ??= ReadString(first, "thumbnail");
             duration ??= ReadDouble(first, "duration");
-            if (title == "Sans titre")
+            if (titleWasMissing)
                 title = ReadString(first, "title") ?? title;
         }
 

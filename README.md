@@ -15,6 +15,7 @@ ClipPull passes URLs to yt-dlp and can therefore work with sites supported by th
 ## Main features
 
 - Windows 10/11 x64 and one portable `ClipPull.exe`
+- English and French interface; English is the first-launch default and can be changed instantly in Settings
 - Multiple links at once, processed sequentially
 - Visible queue, progress, duplicate filtering, and retry of failed items
 - Video quality selection: Auto, best, 1080p, 720p, 480p, or smaller file
@@ -60,7 +61,7 @@ GitHub Actions also builds the Windows executable, calculates its SHA-256, and p
 
 ClipPull is an original project by **Sébastien Dubé**. The idea, product direction, requirements, priorities, approvals, and final decisions are his.
 
-Development was AI-assisted: **OpenAI ChatGPT** was used for architecture, implementation, documentation, GitHub automation, and build/release verification under his direction and review. No AI tool is an author, owner, or maintainer of this project, and use of OpenAI tools implies no affiliation with or endorsement by OpenAI.
+Development was AI-assisted: **OpenAI ChatGPT and OpenAI Codex** were used for architecture, implementation, documentation, GitHub automation, and build/release verification under his direction and review. No AI tool is an author, owner, or maintainer of this project, and use of OpenAI tools implies no affiliation with or endorsement by OpenAI.
 
 **Final responsibility and maintenance rest with Sébastien Dubé.** See [`AI_ASSISTANCE.md`](AI_ASSISTANCE.md) for the full disclosure.
 

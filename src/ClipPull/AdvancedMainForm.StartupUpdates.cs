@@ -23,14 +23,14 @@ internal sealed partial class AdvancedMainForm
         try
         {
             SetStatusSafe("Démarrage • Vérification automatique des composants...");
-            await _engineManager.EnsureAsync(message => SetStatusSafe($"Démarrage • {message}"), token);
+            await _engineManager.EnsureAsync(message => SetStatusSafe($"Démarrage • {message.Resolve()}"), token);
 
             string ffmpegState;
             if (_ffmpegManager.IsInstalled)
             {
                 var ffmpegProgress = new Progress<double>(SetProgress);
                 ffmpegState = await _ffmpegManager.UpdateInstalledAsync(
-                    message => SetStatusSafe($"Démarrage • {message}"),
+                    message => SetStatusSafe($"Démarrage • {message.Resolve()}"),
                     ffmpegProgress,
                     token);
             }

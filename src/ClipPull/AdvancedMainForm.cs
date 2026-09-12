@@ -415,7 +415,7 @@ internal sealed partial class AdvancedMainForm : Form
                 SetQueueStatus(i, "En cours...");
                 SetProgress(0);
                 var prefix = $"{i + 1}/{urls.Count}";
-                var progress = new Progress<double>(SetProgress);
+                var progress = new Progress<DownloadProgress>(value => SetProgress(value.Percent));
 
                 try
                 {

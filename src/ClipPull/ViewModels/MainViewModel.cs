@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Media.Imaging;
@@ -26,6 +27,9 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly YtDlpManager _engineManager = new();
     private readonly FfmpegManager _ffmpegManager = new();
     private readonly MediaService _mediaService = new();
+    private readonly UpdateService _updateService;
+    private readonly SettingsService _settingsService;
+    private readonly AppSettings _settings;
     private readonly List<DownloadError> _lastErrors = [];
 
     private readonly string _archivePath = Path.Combine(
@@ -34,12 +38,35 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private CancellationTokenSource? _activeOperation;
     private CancellationTokenSource? _startupOperation;
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly SemaphoreSlim _updateCheckGate = new(1, 1);
+    private Uri? _availableReleasePage;
+    private string _updateStatusKey = "Update.NotChecked";
 
-    public MainViewModel()
+    private static readonly Uri RepositoryPage = new("https://github.com/Sd-tech-Sol/ClipPull");
+    private static readonly Uri LicensePage = new("https://github.com/Sd-tech-Sol/ClipPull/blob/main/LICENSE");
+    private static readonly Uri AiAssistancePage = new("https://github.com/Sd-tech-Sol/ClipPull/blob/main/AI_ASSISTANCE.md");
+
+    public MainViewModel() : this(new SettingsService(), new UpdateService())
     {
-        OutputFolder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            "Downloads", "ClipPull");
+    }
+
+    internal MainViewModel(SettingsService settingsService, UpdateService updateService)
+    {
+        _settingsService = settingsService;
+        _updateService = updateService;
+        _settings = _settingsService.Load();
+        _outputFolder = _settings.OutputFolder;
+        _formatIndex = _settings.FormatIndex;
+        _qualityIndex = _settings.QualityIndex;
+        _playlistLimit = _settings.PlaylistLimit;
+        _subtitleModeIndex = _settings.SubtitleModeIndex;
+        _subtitleLanguageIndex = _settings.SubtitleLanguageIndex;
+        _useAutomaticSubtitleFallback = _settings.UseAutomaticSubtitleFallback;
+        _useHistory = _settings.UseHistory;
+        _useBrowserCookies = _settings.UseBrowserCookies;
+        _selectedBrowser = _settings.SelectedBrowser;
+        _checkForUpdates = _settings.CheckForUpdates;
         Queue.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(IsQueueEmpty));
@@ -56,6 +83,15 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<string> Browsers { get; } =
         ["Chrome", "Edge", "Firefox", "Brave", "Chromium", "Opera", "Vivaldi"];
+
+    public string AppVersion
+    {
+        get
+        {
+            var version = Assembly.GetExecutingAssembly().GetName().Version;
+            return version is null ? "0.6.0" : $"{version.Major}.{version.Minor}.{version.Build}";
+        }
+    }
 
     [ObservableProperty]
     private string _urlsText = string.Empty;
@@ -122,6 +158,7 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsM4aSelected));
         OnPropertyChanged(nameof(IsMp3Selected));
         OnPropertyChanged(nameof(IsQualityEnabled));
+        SaveGeneralSettings();
     }
 
     [ObservableProperty]
@@ -138,6 +175,26 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
     private int _playlistLimit = 50;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSubtitleLanguageEnabled))]
+    [NotifyPropertyChangedFor(nameof(IsSubtitleFallbackEnabled))]
+    private int _subtitleModeIndex;
+
+    public bool IsSubtitlesEnabled => SubtitleModeIndex != 0;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSubtitleFallbackEnabled))]
+    private int _subtitleLanguageIndex;
+
+    public bool IsSubtitleLanguageEnabled => IsSubtitlesEnabled && !IsBusy;
+
+    // The fallback toggle is meaningless for "All available": that mode only ever
+    // downloads manually authored tracks, never auto-generated captions.
+    public bool IsSubtitleFallbackEnabled => IsSubtitlesEnabled && SubtitleLanguageIndex != 3 && !IsBusy;
+
+    [ObservableProperty]
+    private bool _useAutomaticSubtitleFallback;
+
+    [ObservableProperty]
     private bool _useHistory = true;
 
     [ObservableProperty]
@@ -149,13 +206,87 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
     private string _selectedBrowser = "Chrome";
 
     [ObservableProperty]
+    private bool _checkForUpdates = true;
+
+    [ObservableProperty]
     private bool _isAdvancedOpen;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateAvailableText))]
+    private string _availableVersion = string.Empty;
+
+    [ObservableProperty]
+    private bool _isUpdateAvailable;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateStatusText))]
+    [NotifyPropertyChangedFor(nameof(CanCheckForUpdates))]
+    private bool _isCheckingForUpdates;
+
+    public string UpdateAvailableText => L("Update.Available", AvailableVersion);
+
+    public string UpdateStatusText => L(IsCheckingForUpdates ? "Update.Checking" : _updateStatusKey);
+
+    public bool CanCheckForUpdates => !IsCheckingForUpdates;
+
+    internal string ThemePreference => _settings.Theme;
+
+    internal WindowSettings SavedWindow => _settings.Window;
+
+    internal void SetThemePreference(string preference)
+    {
+        _settings.Theme = preference;
+        _settingsService.Save(_settings);
+    }
+
+    internal void SetLanguagePreference(AppLanguage language)
+    {
+        _settings.Language = language.ToString();
+        _settingsService.Save(_settings);
+    }
+
+    internal void SaveWindow(double width, double height, bool isMaximized)
+    {
+        _settings.Window.Width = width;
+        _settings.Window.Height = height;
+        _settings.Window.IsMaximized = isMaximized;
+        _settingsService.Save(_settings);
+    }
+
+    private void SaveGeneralSettings()
+    {
+        _settings.OutputFolder = OutputFolder;
+        _settings.FormatIndex = FormatIndex;
+        _settings.QualityIndex = QualityIndex;
+        _settings.UseHistory = UseHistory;
+        _settings.UseBrowserCookies = UseBrowserCookies;
+        _settings.SelectedBrowser = SelectedBrowser;
+        _settings.PlaylistLimit = PlaylistLimit;
+        _settings.CheckForUpdates = CheckForUpdates;
+        _settings.SubtitleModeIndex = SubtitleModeIndex;
+        _settings.SubtitleLanguageIndex = SubtitleLanguageIndex;
+        _settings.UseAutomaticSubtitleFallback = UseAutomaticSubtitleFallback;
+        _settingsService.Save(_settings);
+    }
+
+    partial void OnOutputFolderChanged(string value) => SaveGeneralSettings();
+    partial void OnQualityIndexChanged(int value) => SaveGeneralSettings();
+    partial void OnPlaylistLimitChanged(int value) => SaveGeneralSettings();
+    partial void OnSubtitleModeIndexChanged(int value) => SaveGeneralSettings();
+    partial void OnSubtitleLanguageIndexChanged(int value) => SaveGeneralSettings();
+    partial void OnUseAutomaticSubtitleFallbackChanged(bool value) => SaveGeneralSettings();
+    partial void OnUseHistoryChanged(bool value) => SaveGeneralSettings();
+    partial void OnUseBrowserCookiesChanged(bool value) => SaveGeneralSettings();
+    partial void OnSelectedBrowserChanged(string value) => SaveGeneralSettings();
+    partial void OnCheckForUpdatesChanged(bool value) => SaveGeneralSettings();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotBusy))]
     [NotifyPropertyChangedFor(nameof(IsQualityEnabled))]
     [NotifyPropertyChangedFor(nameof(IsPlaylistLimitEnabled))]
     [NotifyPropertyChangedFor(nameof(IsBrowserEnabled))]
+    [NotifyPropertyChangedFor(nameof(IsSubtitleLanguageEnabled))]
+    [NotifyPropertyChangedFor(nameof(IsSubtitleFallbackEnabled))]
     [NotifyPropertyChangedFor(nameof(PrimaryActionLabel))]
     [NotifyPropertyChangedFor(nameof(PrimaryActionIcon))]
     [NotifyPropertyChangedFor(nameof(CanUsePrimaryAction))]
@@ -347,6 +478,120 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
             _startupOperation.Dispose();
             _startupOperation = null;
         }
+    }
+
+    public Task RunStartupUpdateCheckAsync()
+    {
+        if (!UpdateService.ShouldRunAutomaticCheck(
+                CheckForUpdates, _settings.LastUpdateCheckUtc, DateTimeOffset.UtcNow, TimeSpan.FromHours(18)))
+        {
+            return Task.CompletedTask;
+        }
+
+        return CheckForUpdatesCoreAsync(manual: false);
+    }
+
+    [RelayCommand]
+    private Task CheckForUpdatesAsync() => CheckForUpdatesCoreAsync(manual: true);
+
+    private async Task CheckForUpdatesCoreAsync(bool manual)
+    {
+        await _updateCheckGate.WaitAsync();
+        try
+        {
+            if (!manual && !UpdateService.ShouldRunAutomaticCheck(
+                    CheckForUpdates, _settings.LastUpdateCheckUtc, DateTimeOffset.UtcNow, TimeSpan.FromHours(18)))
+            {
+                return;
+            }
+
+            IsCheckingForUpdates = true;
+            var result = await _updateService.CheckAsync(AppVersion, _lifetimeCancellation.Token);
+
+            // A failed check (offline, rate-limited, transient GitHub error) must not be
+            // recorded as a successful 18-hour check, or a momentary outage would silence
+            // automatic checks for the rest of that window.
+            if (result.Status != UpdateCheckStatus.Failed)
+            {
+                _settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
+                _settingsService.Save(_settings);
+            }
+
+            switch (result.Status)
+            {
+                case UpdateCheckStatus.UpdateAvailable when result.ReleasePage is not null:
+                    AvailableVersion = result.LatestVersion ?? string.Empty;
+                    _availableReleasePage = result.ReleasePage;
+                    IsUpdateAvailable = true;
+                    _updateStatusKey = "Update.AvailableShort";
+                    break;
+                case UpdateCheckStatus.UpToDate:
+                    IsUpdateAvailable = false;
+                    _availableReleasePage = null;
+                    _updateStatusKey = "Update.UpToDate";
+                    if (manual)
+                        SetStatus("Update.Title", "Update.UpToDate", InfoBarSeverity.Success);
+                    break;
+                default:
+                    _updateStatusKey = "Update.Unable";
+                    if (manual)
+                        SetStatus("Update.Title", "Update.Unable", InfoBarSeverity.Warning);
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed while a check was in flight; nothing to report.
+        }
+        finally
+        {
+            IsCheckingForUpdates = false;
+            OnPropertyChanged(nameof(UpdateStatusText));
+            _updateCheckGate.Release();
+        }
+    }
+
+    public void CancelUpdateChecks() => _lifetimeCancellation.Cancel();
+
+    [RelayCommand]
+    private void ViewUpdate()
+    {
+        var releaseTag = _availableReleasePage is null
+            ? string.Empty
+            : Uri.UnescapeDataString(_availableReleasePage.Segments[^1].TrimEnd('/'));
+        if (_availableReleasePage is not null &&
+            UpdateService.TryValidateReleasePage(_availableReleasePage.AbsoluteUri, releaseTag, out var validated) &&
+            UpdateService.TryParseVersion(releaseTag, out var parsed) &&
+            string.Equals($"{parsed.Major}.{parsed.Minor}.{parsed.Build}", AvailableVersion, StringComparison.Ordinal))
+        {
+            OpenTrustedWebPage(validated);
+        }
+    }
+
+    [RelayCommand]
+    private static void OpenGitHub() => OpenTrustedWebPage(RepositoryPage);
+
+    [RelayCommand]
+    private static void OpenLicense() => OpenTrustedWebPage(LicensePage);
+
+    [RelayCommand]
+    private static void OpenAiAssistance() => OpenTrustedWebPage(AiAssistancePage);
+
+    private static void OpenTrustedWebPage(Uri page)
+    {
+        if (page.Scheme != Uri.UriSchemeHttps ||
+            !string.Equals(page.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
+            !(string.Equals(page.AbsolutePath.TrimEnd('/'), "/Sd-tech-Sol/ClipPull", StringComparison.OrdinalIgnoreCase) ||
+              page.AbsolutePath.StartsWith("/Sd-tech-Sol/ClipPull/", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = page.AbsoluteUri,
+            UseShellExecute = true
+        });
     }
 
     public void CancelStartupChecks() => _startupOperation?.Cancel();
@@ -615,6 +860,14 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
                 return;
         }
 
+        // If subtitles are requested and FFmpeg happens to already be installed
+        // (for this or any other reason), ensure it up front so the very first
+        // yt-dlp call can request SRT directly via --convert-subs. If FFmpeg is
+        // NOT installed, nothing is asked here -- yt-dlp is given the chance to
+        // produce SRT natively first, and FFmpeg is only ever offered afterward,
+        // per item, if a resulting sidecar still isn't SRT (see FinalizeSubtitlesAsync).
+        var subtitlesWantFfmpegIfAvailable = SubtitleModeIndex != 0 && _ffmpegManager.IsInstalled;
+
         _activeOperation = new CancellationTokenSource();
         var token = _activeOperation.Token;
         _lastErrors.Clear();
@@ -634,33 +887,76 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
             var engine = await _engineManager.EnsureAsync(m => SetStatus("Status.PreparingTitle", m, InfoBarSeverity.Informational), token);
 
             string? ffmpegDirectory = null;
-            if (needsFfmpeg)
+            if (needsFfmpeg || subtitlesWantFfmpegIfAvailable)
             {
+                // Already installed: FfmpegManager.EnsureAsync returns the verified local
+                // directory immediately, with no network access.
                 var ffmpegProgress = new Progress<double>(v => SetActiveProgress(v));
                 ffmpegDirectory = await _ffmpegManager.EnsureAsync(m => SetStatus("Status.PreparingTitle", m, InfoBarSeverity.Informational), ffmpegProgress, token);
             }
 
             var settings = ReadSettings(ffmpegDirectory);
+            var subtitleConversion = new SubtitleConversionState { FfmpegDirectory = ffmpegDirectory };
+            var workItems = Queue.ToList();
 
-            for (var i = 0; i < urls.Count; i++)
+            for (var i = 0; i < workItems.Count; i++)
             {
                 token.ThrowIfCancellationRequested();
-                var url = urls[i];
-                var item = Queue[i];
-                item.State = QueueItemState.Active;
-                item.Progress = 0;
+                var item = workItems[i];
+                if (!Queue.Contains(item))
+                    continue;
 
-                var prefix = $"{i + 1}/{urls.Count}";
-                var progress = new Progress<double>(v => item.Progress = Math.Clamp(v, 0, 100));
+                var url = item.Url;
+                item.State = QueueItemState.Active;
+                item.ResetProgress();
+
+                var prefix = $"{i + 1}/{workItems.Count}";
+                var progress = new Progress<DownloadProgress>(item.ApplyProgress);
 
                 try
                 {
-                    var result = await _mediaService.DownloadAsync(
-                        engine, url, folder, settings, progress,
-                        m => SetStatus(new LocalizedMessage("Status.DownloadTitle", prefix), m, InfoBarSeverity.Informational),
-                        token);
+                    DownloadResult result;
+                    try
+                    {
+                        result = await _mediaService.DownloadAsync(
+                            engine, url, folder, settings, progress,
+                            m => SetStatus(new LocalizedMessage("Status.DownloadTitle", prefix), m, InfoBarSeverity.Informational),
+                            token);
+                    }
+                    catch (RequestedFormatUnavailableException formatError)
+                    {
+                        ffmpegDirectory = await EnsureAutoFallbackFfmpegAsync(token);
+                        subtitleConversion.FfmpegDirectory = ffmpegDirectory;
+                        settings = ReadSettings(ffmpegDirectory);
+                        item.ResetProgress();
+                        SetStatus(new LocalizedMessage("Status.DownloadTitle", prefix),
+                            new LocalizedMessage("Status.AutoFallback"), InfoBarSeverity.Informational);
+                        var fallbackResult = await _mediaService.DownloadAsync(
+                            engine, url, folder, settings, progress,
+                            m => SetStatus(new LocalizedMessage("Status.DownloadTitle", prefix), m, InfoBarSeverity.Informational),
+                            token, useAutoFallback: true);
+                        result = new DownloadResult(
+                            formatError.PartialFiles.Concat(fallbackResult.Files)
+                                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                            fallbackResult.SubtitleFiles);
+                    }
 
-                    if (result.Files.Count == 0 && settings.UseHistory)
+                    var subtitleState = SubtitleResultState.None;
+                    if (settings.SubtitleMode != SubtitleMode.Off)
+                        (result, subtitleState) = await FinalizeSubtitlesAsync(result, settings, subtitleConversion, token);
+
+                    if (settings.SubtitleMode == SubtitleMode.SubtitlesOnly)
+                    {
+                        // MediaService already throws when nothing was found, so reaching
+                        // here means at least one subtitle file was written.
+                        succeeded++;
+                        item.State = QueueItemState.Completed;
+                        item.CompletedFileCount = result.SubtitleFiles.Count;
+                        item.DisplayText = string.Join(", ", result.SubtitleFiles.Select(Path.GetFileName));
+                        item.DetailText = item.DisplayText;
+                        item.SubtitleResultState = subtitleState;
+                    }
+                    else if (result.Files.Count == 0 && settings.UseHistory)
                     {
                         skipped++;
                         item.State = QueueItemState.AlreadyDownloaded;
@@ -675,6 +971,9 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
                             item.DisplayText = string.Join(", ", result.Files.Select(Path.GetFileName));
                             item.DetailText = item.DisplayText;
                         }
+
+                        if (settings.SubtitleMode == SubtitleMode.WithMedia)
+                            item.SubtitleResultState = subtitleState;
                     }
                 }
                 catch (OperationCanceledException)
@@ -742,6 +1041,29 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
             active.Progress = Math.Clamp(value, 0, 100);
     }
 
+    private async Task<string> EnsureAutoFallbackFfmpegAsync(CancellationToken cancellationToken)
+    {
+        if (!_ffmpegManager.IsInstalled)
+        {
+            var confirm = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = L("Dialog.FfmpegTitle"),
+                Content = L("Dialog.AutoFallbackFfmpegMessage"),
+                PrimaryButtonText = L("Common.Continue"),
+                CloseButtonText = L("Common.Cancel")
+            };
+            if (await confirm.ShowDialogAsync() != Wpf.Ui.Controls.MessageBoxResult.Primary)
+                throw new LocalizedException("Service.AutoFallbackDeclined");
+        }
+
+        var ffmpegProgress = new Progress<double>(SetActiveProgress);
+        var directory = await _ffmpegManager.EnsureAsync(
+            message => SetStatus("Status.PreparingTitle", message, InfoBarSeverity.Informational),
+            ffmpegProgress, cancellationToken);
+        SetFfmpegState(DependencyState.UpToDate);
+        return directory;
+    }
+
     [RelayCommand]
     private void CopyErrors()
     {
@@ -761,6 +1083,17 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             SetStatus("Status.ClipboardTitle", "Status.ErrorReportCopyFailed", InfoBarSeverity.Warning);
         }
+    }
+
+    [RelayCommand]
+    private void RemoveQueueItem(QueueItemViewModel? item)
+    {
+        if (item is null || item.State == QueueItemState.Active)
+            return;
+
+        Queue.Remove(item);
+        _lastErrors.RemoveAll(error => string.Equals(error.Url, item.Url, StringComparison.Ordinal));
+        HasErrors = _lastErrors.Count > 0;
     }
 
     [RelayCommand]
@@ -847,11 +1180,43 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
             _ => VideoQuality.Auto
         };
 
+        var subtitleMode = ParseSubtitleMode(SubtitleModeIndex);
+        var subtitleLanguage = ParseSubtitleLanguage(SubtitleLanguageIndex);
+        if (subtitleLanguage == SubtitleLanguagePreference.Automatic)
+        {
+            subtitleLanguage = LocalizationService.CurrentLanguage == AppLanguage.French
+                ? SubtitleLanguagePreference.French
+                : SubtitleLanguagePreference.English;
+        }
+
+        // A subtitles-only request must never be recorded in, or suppressed by, the
+        // media download archive: the user may already have the media and just want
+        // the subtitle now, and fetching only the subtitle must not poison future
+        // media-only re-downloads of the same URL.
+        var useHistory = UseHistory && subtitleMode != SubtitleMode.SubtitlesOnly;
+
         return new DownloadSettings(
             mode, quality, AllowPlaylists, PlaylistLimit,
-            UseHistory, UseBrowserCookies ? SelectedBrowser : null,
-            ffmpegDirectory, UseHistory ? _archivePath : null);
+            useHistory, UseBrowserCookies ? SelectedBrowser : null,
+            ffmpegDirectory, useHistory ? _archivePath : null,
+            subtitleMode, subtitleLanguage, UseAutomaticSubtitleFallback,
+            ConvertSubtitlesToSrt: subtitleMode != SubtitleMode.Off && ffmpegDirectory is not null);
     }
+
+    private static SubtitleMode ParseSubtitleMode(int index) => index switch
+    {
+        1 => SubtitleMode.WithMedia,
+        2 => SubtitleMode.SubtitlesOnly,
+        _ => SubtitleMode.Off
+    };
+
+    private static SubtitleLanguagePreference ParseSubtitleLanguage(int index) => index switch
+    {
+        1 => SubtitleLanguagePreference.English,
+        2 => SubtitleLanguagePreference.French,
+        3 => SubtitleLanguagePreference.All,
+        _ => SubtitleLanguagePreference.Automatic
+    };
 
     private void PrepareQueue(IReadOnlyList<string> urls)
     {
@@ -860,7 +1225,7 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             var url = urls[i];
             var platform = GetPlatform(url);
-            Queue.Add(new QueueItemViewModel(url, platform, ShortenUrl(url), FormatIndex, QualityIndex));
+            Queue.Add(new QueueItemViewModel(url, platform, ShortenUrl(url), FormatIndex, QualityIndex, SubtitleModeIndex));
         }
     }
 
@@ -936,6 +1301,78 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
     private static LocalizedMessage FormatResultCount(int count, string singularKey, string pluralKey) =>
         new(count == 1 ? singularKey : pluralKey, count);
 
+    /// <summary>Tracks the FFmpeg decision for subtitle conversion across one download batch, so the
+    /// confirmation dialog is shown at most once and every item reuses the same answer.</summary>
+    private sealed class SubtitleConversionState
+    {
+        public string? FfmpegDirectory;
+        public bool Declined;
+    }
+
+    private async Task<(DownloadResult Result, SubtitleResultState State)> FinalizeSubtitlesAsync(
+        DownloadResult result, DownloadSettings settings, SubtitleConversionState conversionState, CancellationToken cancellationToken)
+    {
+        if (result.SubtitleFiles.Count == 0)
+        {
+            return (result, settings.SubtitleLanguage == SubtitleLanguagePreference.All
+                ? SubtitleResultState.NoSubtitlesAvailable
+                : SubtitleResultState.NoSubtitlesAvailableLanguage);
+        }
+
+        var files = result.SubtitleFiles.ToList();
+        var needsConversion = files.Any(file => !IsSrt(file));
+
+        if (needsConversion && conversionState.FfmpegDirectory is null && !conversionState.Declined)
+        {
+            if (_ffmpegManager.IsInstalled)
+            {
+                // Became available since the batch started (e.g. a prior item's format
+                // fallback installed it); reuse it instead of asking again.
+                conversionState.FfmpegDirectory = await _ffmpegManager.EnsureAsync(_ => { }, null, cancellationToken);
+            }
+            else
+            {
+                var confirm = new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = L("Dialog.SubtitleFfmpegTitle"),
+                    Content = L("Dialog.SubtitleFfmpegMessage"),
+                    PrimaryButtonText = L("Common.Continue"),
+                    CloseButtonText = L("Dialog.KeepOriginalFormat")
+                };
+                if (await confirm.ShowDialogAsync() == Wpf.Ui.Controls.MessageBoxResult.Primary)
+                {
+                    var ffmpegProgress = new Progress<double>(SetActiveProgress);
+                    conversionState.FfmpegDirectory = await _ffmpegManager.EnsureAsync(
+                        m => SetStatus("Status.PreparingTitle", m, InfoBarSeverity.Informational), ffmpegProgress, cancellationToken);
+                    SetFfmpegState(DependencyState.UpToDate);
+                }
+                else
+                {
+                    conversionState.Declined = true;
+                }
+            }
+        }
+
+        if (needsConversion && conversionState.FfmpegDirectory is not null)
+        {
+            for (var i = 0; i < files.Count; i++)
+            {
+                if (IsSrt(files[i]))
+                    continue;
+
+                var converted = await MediaService.ConvertSubtitleToSrtAsync(conversionState.FfmpegDirectory, files[i], cancellationToken);
+                if (converted is not null)
+                    files[i] = converted;
+            }
+        }
+
+        var finalResult = new DownloadResult(result.Files, files);
+        var state = files.All(IsSrt) ? SubtitleResultState.Saved : SubtitleResultState.ConversionRequiresFfmpeg;
+        return (finalResult, state);
+    }
+
+    private static bool IsSrt(string path) => string.Equals(Path.GetExtension(path), ".srt", StringComparison.OrdinalIgnoreCase);
+
     private static string LocalizeDependencyState(DependencyState state) => L(state switch
     {
         DependencyState.UpToDate => "Dependency.UpToDate",
@@ -971,10 +1408,16 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(DependencySummaryText));
         OnPropertyChanged(nameof(InfoBarTitle));
         OnPropertyChanged(nameof(InfoBarMessage));
+        OnPropertyChanged(nameof(UpdateAvailableText));
+        OnPropertyChanged(nameof(UpdateStatusText));
 
         foreach (var item in Queue)
             item.RefreshLocalization();
     }
 
-    public void Dispose() => LocalizationService.LanguageChanged -= OnLanguageChanged;
+    public void Dispose()
+    {
+        LocalizationService.LanguageChanged -= OnLanguageChanged;
+        _lifetimeCancellation.Dispose();
+    }
 }

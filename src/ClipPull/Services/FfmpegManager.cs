@@ -323,7 +323,7 @@ internal sealed class FfmpegManager
     private static HttpClient CreateClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipPull/0.5.0 (+https://github.com/Sd-tech-Sol/ClipPull)");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipPull/0.6.0 (+https://github.com/Sd-tech-Sol/ClipPull)");
         return client;
     }
 

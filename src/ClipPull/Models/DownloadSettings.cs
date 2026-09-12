@@ -17,6 +17,21 @@ internal enum VideoQuality
     Small
 }
 
+internal enum SubtitleMode
+{
+    Off,
+    WithMedia,
+    SubtitlesOnly
+}
+
+internal enum SubtitleLanguagePreference
+{
+    Automatic,
+    English,
+    French,
+    All
+}
+
 internal sealed record DownloadSettings(
     MediaMode Mode,
     VideoQuality Quality,
@@ -25,9 +40,13 @@ internal sealed record DownloadSettings(
     bool UseHistory,
     string? Browser,
     string? FfmpegDirectory,
-    string? ArchivePath);
+    string? ArchivePath,
+    SubtitleMode SubtitleMode = SubtitleMode.Off,
+    SubtitleLanguagePreference SubtitleLanguage = SubtitleLanguagePreference.Automatic,
+    bool UseAutomaticSubtitleFallback = false,
+    bool ConvertSubtitlesToSrt = false);
 
-internal sealed record DownloadResult(IReadOnlyList<string> Files);
+internal sealed record DownloadResult(IReadOnlyList<string> Files, IReadOnlyList<string> SubtitleFiles);
 
 internal sealed record MediaPreview(
     string Title,

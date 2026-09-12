@@ -1,0 +1,389 @@
+using System.Diagnostics;
+using ClipPull.Models;
+using ClipPull.Services;
+
+namespace ClipPull.Tests;
+
+public sealed class MediaServiceTests
+{
+    [Fact]
+    public void ProgressParserUsesInvariantMachineFields()
+    {
+        var parsed = MediaService.TryParseProgress(
+            "CLIPPULL_PROGRESS|5242880|10485760|13002342.500|18", out var progress);
+
+        Assert.True(parsed);
+        Assert.Equal(50, progress.Percent);
+        Assert.Equal(13002342.5, progress.BytesPerSecond);
+        Assert.Equal(TimeSpan.FromSeconds(18), progress.Eta);
+    }
+
+    [Theory]
+    [InlineData("CLIPPULL_PROGRESS|12|0|0.000|-1")]
+    [InlineData("unrelated yt-dlp output")]
+    public void UnknownOrUnrelatedProgressDoesNotThrow(string line)
+    {
+        var parsed = MediaService.TryParseProgress(line, out var progress);
+
+        if (line.StartsWith("CLIPPULL", StringComparison.Ordinal))
+        {
+            Assert.True(parsed);
+            Assert.Null(progress.BytesPerSecond);
+            Assert.Null(progress.Eta);
+        }
+        else
+        {
+            Assert.False(parsed);
+        }
+    }
+
+    [Fact]
+    public void FormatFallbackClassifierRequiresExactYtDlpError()
+    {
+        Assert.True(MediaService.IsRequestedFormatUnavailable([
+            "ERROR: [youtube] abc: Requested format is not available. Use --list-formats for a list of available formats"]));
+        Assert.False(MediaService.IsRequestedFormatUnavailable(["ERROR: HTTP Error 403: Forbidden"]));
+        Assert.False(MediaService.IsRequestedFormatUnavailable(["ERROR: This video is private"]));
+        Assert.False(MediaService.IsRequestedFormatUnavailable([
+            "WARNING: Only images are available for download",
+            "ERROR: [youtube] abc: Requested format is not available. Use --list-formats for a list of available formats"]));
+    }
+
+    [Fact]
+    public void AutoSelectorsKeepCombinedFirstAndSeparateStreamsForFallback()
+    {
+        var settings = new DownloadSettings(MediaMode.Video, VideoQuality.Auto, false, 50, true, null, null, null);
+        var combined = new ProcessStartInfo();
+        var fallback = new ProcessStartInfo();
+
+        MediaService.ConfigureFormat(combined, settings, useAutoFallback: false);
+        MediaService.ConfigureFormat(fallback, settings, useAutoFallback: true);
+
+        Assert.Contains("best[ext=mp4]/best", combined.ArgumentList);
+        Assert.DoesNotContain("--merge-output-format", combined.ArgumentList);
+        Assert.Contains("bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio", fallback.ArgumentList);
+        Assert.Contains("--merge-output-format", fallback.ArgumentList);
+        Assert.Contains("mp4/mkv", fallback.ArgumentList);
+    }
+
+    [Fact]
+    public void SubtitlesOffAddsNoSubtitleArguments()
+    {
+        var settings = Subtitled(SubtitleMode.Off, SubtitleLanguagePreference.English);
+        var startInfo = new ProcessStartInfo();
+
+        MediaService.ConfigureSubtitles(startInfo, settings);
+
+        Assert.DoesNotContain("--write-subs", startInfo.ArgumentList);
+        Assert.DoesNotContain("--write-auto-subs", startInfo.ArgumentList);
+        Assert.DoesNotContain("--sub-langs", startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void EnglishSelectionRequestsManualEnglishVariantsAsSrt()
+    {
+        var settings = Subtitled(SubtitleMode.WithMedia, SubtitleLanguagePreference.English);
+        var startInfo = new ProcessStartInfo();
+
+        MediaService.ConfigureSubtitles(startInfo, settings);
+
+        Assert.Contains("--write-subs", startInfo.ArgumentList);
+        Assert.DoesNotContain("--write-auto-subs", startInfo.ArgumentList);
+        Assert.Contains("--sub-format", startInfo.ArgumentList);
+        Assert.Contains("srt/best", startInfo.ArgumentList);
+        Assert.Contains("--sub-langs", startInfo.ArgumentList);
+        Assert.Contains("en.*", startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void FrenchSelectionRequestsManualFrenchVariants()
+    {
+        var settings = Subtitled(SubtitleMode.WithMedia, SubtitleLanguagePreference.French);
+        var startInfo = new ProcessStartInfo();
+
+        MediaService.ConfigureSubtitles(startInfo, settings);
+
+        Assert.Contains("--sub-langs", startInfo.ArgumentList);
+        Assert.Contains("fr.*", startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void UnresolvedAutomaticFallsBackToEnglishDeterministically()
+    {
+        // MainViewModel resolves Automatic to the interface language before this point;
+        // MediaService itself must stay free of any LocalizationService dependency.
+        var settings = Subtitled(SubtitleMode.WithMedia, SubtitleLanguagePreference.Automatic);
+        var startInfo = new ProcessStartInfo();
+
+        MediaService.ConfigureSubtitles(startInfo, settings);
+
+        Assert.Contains("en.*", startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void OfficialSubtitlesArePreferredOverAutoGeneratedForTheSameLanguage()
+    {
+        var settings = Subtitled(SubtitleMode.WithMedia, SubtitleLanguagePreference.English, useAutomaticFallback: true);
+        var startInfo = new ProcessStartInfo();
+
+        MediaService.ConfigureSubtitles(startInfo, settings);
+
+        // Both flags are present: yt-dlp itself prefers the manual track over the
+        // auto-generated one for a language that has both, so this never downloads
+        // a duplicate official+auto pair.
+        Assert.Contains("--write-subs", startInfo.ArgumentList);
+        Assert.Contains("--write-auto-subs", startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void AutomaticFallbackOffRequestsManualSubtitlesOnly()
+    {
+        var settings = Subtitled(SubtitleMode.WithMedia, SubtitleLanguagePreference.English, useAutomaticFallback: false);
+        var startInfo = new ProcessStartInfo();
+
+        MediaService.ConfigureSubtitles(startInfo, settings);
+
+        Assert.Contains("--write-subs", startInfo.ArgumentList);
+        Assert.DoesNotContain("--write-auto-subs", startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void AllAvailableExcludesLiveChatAndNeverIncludesAutoGeneratedCaptions()
+    {
+        var settings = Subtitled(SubtitleMode.WithMedia, SubtitleLanguagePreference.All, useAutomaticFallback: true);
+        var startInfo = new ProcessStartInfo();
+
+        MediaService.ConfigureSubtitles(startInfo, settings);
+
+        Assert.Contains("--write-subs", startInfo.ArgumentList);
+        Assert.Contains("all,-live_chat", startInfo.ArgumentList);
+        // Even with the fallback toggle on, "All available" must never pull in
+        // auto-translated caption tracks (a popular video can expose 100+ of them).
+        Assert.DoesNotContain("--write-auto-subs", startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void SubtitlesOnlyNeverConsultsTheDownloadArchiveEvenWithHistoryEnabled()
+    {
+        var subtitlesOnly = new DownloadSettings(
+            MediaMode.Video, VideoQuality.Auto, false, 50,
+            UseHistory: true, Browser: null, FfmpegDirectory: null, ArchivePath: "archive.txt",
+            SubtitleMode: SubtitleMode.SubtitlesOnly, SubtitleLanguage: SubtitleLanguagePreference.English);
+        var withMedia = subtitlesOnly with { SubtitleMode = SubtitleMode.WithMedia };
+
+        // An already-archived video id would otherwise make yt-dlp skip the whole
+        // entry -- including subtitle extraction -- before --write-subs ever runs.
+        Assert.False(MediaService.ShouldUseDownloadArchive(subtitlesOnly));
+        Assert.True(MediaService.ShouldUseDownloadArchive(withMedia));
+    }
+
+    [Fact]
+    public void ConvertSubtitlesToSrtAddsConvertSubsOnlyWhenRequested()
+    {
+        var withConversion = Subtitled(SubtitleMode.WithMedia, SubtitleLanguagePreference.English, convertToSrt: true);
+        var withoutConversion = Subtitled(SubtitleMode.WithMedia, SubtitleLanguagePreference.English, convertToSrt: false);
+        var convertStartInfo = new ProcessStartInfo();
+        var plainStartInfo = new ProcessStartInfo();
+
+        MediaService.ConfigureSubtitles(convertStartInfo, withConversion);
+        MediaService.ConfigureSubtitles(plainStartInfo, withoutConversion);
+
+        Assert.Contains("--convert-subs", convertStartInfo.ArgumentList);
+        Assert.Contains("srt", convertStartInfo.ArgumentList);
+        Assert.DoesNotContain("--convert-subs", plainStartInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void SubtitleWrittenLineIsRecognizedRegardlessOfPathContent()
+    {
+        const string line = @"[info] Writing video subtitles to: subdir\Video title [abc123].en.srt";
+        var isMatch = MediaService.IsSubtitleWrittenLine(line, out var path);
+
+        Assert.True(isMatch);
+        Assert.Equal(@"subdir\Video title [abc123].en.srt", path);
+    }
+
+    [Fact]
+    public void NoSubtitlesForRequestedLanguagesLineIsDistinctFromASuccessfulWrite()
+    {
+        Assert.False(MediaService.IsSubtitleWrittenLine("[info] There are no subtitles for the requested languages", out _));
+    }
+
+    [Fact]
+    public void ResolveFinalSubtitlePathPrefersAnExistingSrtOverTheRecordedVtt()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var recorded = Path.Combine(directory, "Video [abc123].en.vtt");
+            var srt = Path.Combine(directory, "Video [abc123].en.srt");
+            File.WriteAllText(recorded, "WEBVTT");
+            File.WriteAllText(srt, "1\n00:00:00,000 --> 00:00:01,000\nHi\n");
+
+            var resolved = MediaService.ResolveFinalSubtitlePath(recorded);
+
+            Assert.Equal(srt, resolved);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ResolveFinalSubtitlePathKeepsTheRecordedFileWhenNoSrtCounterpartExists()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var recorded = Path.Combine(directory, "Video [abc123].en.vtt");
+            File.WriteAllText(recorded, "WEBVTT");
+
+            var resolved = MediaService.ResolveFinalSubtitlePath(recorded);
+
+            Assert.Equal(recorded, resolved);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ResolveFinalSubtitlePathNeverClaimsAPathThatDoesNotExist()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var recorded = Path.Combine(directory, "Video [abc123].en.vtt");
+
+            var resolved = MediaService.ResolveFinalSubtitlePath(recorded);
+
+            Assert.Null(resolved);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ResolveFinalSubtitlePathAcceptsTheRecordedSrtDirectly()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var recorded = Path.Combine(directory, "Video [abc123].en.srt");
+            File.WriteAllText(recorded, "1\n00:00:00,000 --> 00:00:01,000\nHi\n");
+
+            var resolved = MediaService.ResolveFinalSubtitlePath(recorded);
+
+            Assert.Equal(recorded, resolved);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ConvertSubtitleToSrtAsyncReturnsNullWhenSourceFileIsMissing()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var missing = Path.Combine(directory, "missing.en.vtt");
+
+            var result = await MediaService.ConvertSubtitleToSrtAsync(directory, missing, CancellationToken.None);
+
+            Assert.Null(result);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ConvertSubtitleToSrtAsyncReturnsNullAndKeepsTheOriginalWhenFfmpegIsMissing()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var source = Path.Combine(directory, "Video [abc123].en.vtt");
+            File.WriteAllText(source, "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHi\n");
+            var emptyFfmpegDirectory = Path.Combine(directory, "no-ffmpeg-here");
+            Directory.CreateDirectory(emptyFfmpegDirectory);
+
+            var result = await MediaService.ConvertSubtitleToSrtAsync(emptyFfmpegDirectory, source, CancellationToken.None);
+
+            Assert.Null(result);
+            Assert.True(File.Exists(source));
+            Assert.False(File.Exists(Path.ChangeExtension(source, ".srt")));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ConvertSubtitleToSrtAsyncSkipsAlreadySrtFilesWithoutInvokingFfmpeg()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var srt = Path.Combine(directory, "Video [abc123].en.srt");
+            File.WriteAllText(srt, "1\n00:00:00,000 --> 00:00:01,000\nHi\n");
+
+            // A directory with no ffmpeg.exe would make any real invocation fail;
+            // reaching the .srt short-circuit means ffmpeg was never invoked at all.
+            var result = await MediaService.ConvertSubtitleToSrtAsync(directory, srt, CancellationToken.None);
+
+            Assert.Equal(srt, result);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ConvertSubtitleToSrtAsyncNeverOverwritesAnExistingTarget()
+    {
+        var directory = NewTempDirectory();
+        try
+        {
+            var source = Path.Combine(directory, "Video [abc123].en.vtt");
+            var target = Path.Combine(directory, "Video [abc123].en.srt");
+            File.WriteAllText(source, "WEBVTT");
+            File.WriteAllText(target, "PRE-EXISTING");
+
+            var result = await MediaService.ConvertSubtitleToSrtAsync(directory, source, CancellationToken.None);
+
+            Assert.Equal(target, result);
+            Assert.Equal("PRE-EXISTING", File.ReadAllText(target));
+            // The source is left alone too: no ffmpeg run means nothing was deleted.
+            Assert.True(File.Exists(source));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static string NewTempDirectory()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"ClipPull-mediaservice-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        return directory;
+    }
+
+    private static DownloadSettings Subtitled(
+        SubtitleMode mode,
+        SubtitleLanguagePreference language,
+        bool useAutomaticFallback = false,
+        bool convertToSrt = false) =>
+        new(MediaMode.Video, VideoQuality.Auto, false, 50, true, null, null, null,
+            mode, language, useAutomaticFallback, convertToSrt);
+}

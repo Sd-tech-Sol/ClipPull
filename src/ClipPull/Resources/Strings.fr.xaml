@@ -29,9 +29,28 @@
     <system:String x:Key="Settings.ClearHistory">Effacer l’historique</system:String>
     <system:String x:Key="Settings.Playlists">Playlists</system:String>
     <system:String x:Key="Settings.MaximumPerLink">Maximum par lien</system:String>
+    <system:String x:Key="Settings.Subtitles">Sous-titres</system:String>
     <system:String x:Key="Settings.BrowserSession">Session navigateur</system:String>
     <system:String x:Key="Settings.UseBrowserSession">Utiliser ma session si nécessaire</system:String>
     <system:String x:Key="Settings.Components">Composants</system:String>
+
+    <system:String x:Key="About.Title">À propos</system:String>
+    <system:String x:Key="About.Version">Version</system:String>
+    <system:String x:Key="About.Description">Téléchargeur multimédia portable pour Windows</system:String>
+    <system:String x:Key="About.License">Licence MIT</system:String>
+    <system:String x:Key="About.AiAssistance">Assistance par IA</system:String>
+    <system:String x:Key="About.Acknowledgements">Propulsé par yt-dlp. FFmpeg sert à la fusion et à la conversion des médias au besoin.</system:String>
+
+    <system:String x:Key="Update.Title">Mise à jour de ClipPull</system:String>
+    <system:String x:Key="Update.Automatic">Vérifier automatiquement les mises à jour</system:String>
+    <system:String x:Key="Update.Check">Vérifier les mises à jour</system:String>
+    <system:String x:Key="Update.Checking">Vérification…</system:String>
+    <system:String x:Key="Update.NotChecked">Non vérifié</system:String>
+    <system:String x:Key="Update.UpToDate">ClipPull est à jour.</system:String>
+    <system:String x:Key="Update.Unable">Impossible de vérifier les mises à jour.</system:String>
+    <system:String x:Key="Update.Available">ClipPull {0} est disponible.</system:String>
+    <system:String x:Key="Update.AvailableShort">Mise à jour disponible</system:String>
+    <system:String x:Key="Update.View">Voir la mise à jour</system:String>
 
     <system:String x:Key="Links.DropHere">Dépose tes liens ici</system:String>
     <system:String x:Key="Links.PasteBelow">ou colle une ou plusieurs URL ci-dessous</system:String>
@@ -55,10 +74,23 @@
     <system:String x:Key="Options.Quality720">720p max</system:String>
     <system:String x:Key="Options.Quality480">480p max</system:String>
     <system:String x:Key="Options.QualitySmall">Petit fichier</system:String>
-    <system:String x:Key="Options.QualityAutoTooltip">Auto (rapide) nécessite une source vidéo prête à l’emploi.</system:String>
+    <system:String x:Key="Options.QualityAutoTooltip">Privilégie une vidéo prête à l’emploi, avec repli automatique vers vidéo + audio au besoin.</system:String>
     <system:String x:Key="Options.Playlist">Playlist</system:String>
     <system:String x:Key="Options.PlaylistTooltip">Autoriser le téléchargement de playlists</system:String>
     <system:String x:Key="Options.DownloadAll">Télécharger tout</system:String>
+
+    <system:String x:Key="Subtitles.ModeLabel">Sous-titres</system:String>
+    <system:String x:Key="Subtitles.ModeOff">Désactivés</system:String>
+    <system:String x:Key="Subtitles.ModeWithMedia">Avec le média</system:String>
+    <system:String x:Key="Subtitles.ModeSubtitlesOnly">Sous-titres seulement</system:String>
+    <system:String x:Key="Subtitles.LanguageLabel">Langue</system:String>
+    <system:String x:Key="Subtitles.LanguageAutomatic">Automatique</system:String>
+    <system:String x:Key="Subtitles.LanguageEnglish">English</system:String>
+    <system:String x:Key="Subtitles.LanguageFrench">Français</system:String>
+    <system:String x:Key="Subtitles.LanguageAll">Toutes disponibles</system:String>
+    <system:String x:Key="Subtitles.LanguageAllTooltip">Télécharge uniquement les pistes de sous-titres officielles. Les sous-titres automatiques ne sont pas inclus, pour éviter de télécharger des centaines de fichiers traduits automatiquement.</system:String>
+    <system:String x:Key="Subtitles.UseAutoFallback">Repli vers les sous-titres automatiques</system:String>
+    <system:String x:Key="Subtitles.UseAutoFallbackTooltip">Si aucun sous-titre officiel n’existe dans la langue choisie, ClipPull utilise plutôt les sous-titres automatiques de la plateforme.</system:String>
 
     <system:String x:Key="Queue.Downloads">Téléchargements</system:String>
     <system:String x:Key="Queue.ItemOne">1 élément</system:String>
@@ -71,13 +103,19 @@
     <system:String x:Key="Queue.Waiting">En attente</system:String>
     <system:String x:Key="Queue.Analyzing">Analyse…</system:String>
     <system:String x:Key="Queue.Downloading">Téléchargement…</system:String>
-    <system:String x:Key="Queue.DownloadingProgress">Téléchargement {0:0}%</system:String>
+    <system:String x:Key="Queue.DownloadingProgress">Téléchargement {0:0} %</system:String>
     <system:String x:Key="Queue.Merging">Fusion…</system:String>
     <system:String x:Key="Queue.Completed">Terminé</system:String>
     <system:String x:Key="Queue.CompletedFiles">Terminé ({0} fichiers)</system:String>
     <system:String x:Key="Queue.AlreadyDownloaded">Déjà téléchargé</system:String>
     <system:String x:Key="Queue.Failed">Échec</system:String>
     <system:String x:Key="Queue.Cancelled">Annulé</system:String>
+    <system:String x:Key="Queue.Remove">Retirer de la file</system:String>
+    <system:String x:Key="Queue.SpeedBytes">{0:0} o/s</system:String>
+    <system:String x:Key="Queue.SpeedKilobytes">{0:0.0} ko/s</system:String>
+    <system:String x:Key="Queue.SpeedMegabytes">{0:0.0} Mo/s</system:String>
+    <system:String x:Key="Queue.SpeedGigabytes">{0:0.0} Go/s</system:String>
+    <system:String x:Key="Queue.EtaRemaining">{0} restantes</system:String>
 
     <system:String x:Key="Output.SaveTo">Enregistrer dans</system:String>
     <system:String x:Key="Output.Change">Modifier</system:String>
@@ -142,6 +180,13 @@
     <system:String x:Key="Status.HistoryAlreadyEmpty">L’historique est déjà vide.</system:String>
     <system:String x:Key="Status.HistoryCleared">Historique local effacé.</system:String>
     <system:String x:Key="Status.DownloadFailed">Échec du téléchargement.</system:String>
+    <system:String x:Key="Status.AutoFallback">Aucun flux combiné n’est disponible. Préparation du repli vidéo + audio…</system:String>
+    <system:String x:Key="Status.DownloadingSubtitles">Téléchargement des sous-titres…</system:String>
+    <system:String x:Key="Status.SubtitlesSaved">Sous-titres enregistrés</system:String>
+    <system:String x:Key="Status.NoSubtitlesAvailable">Aucun sous-titre disponible</system:String>
+    <system:String x:Key="Status.NoSubtitlesAvailableLanguage">Aucun sous-titre disponible dans la langue choisie</system:String>
+    <system:String x:Key="Status.UsingAutoSubtitles">Utilisation des sous-titres automatiques</system:String>
+    <system:String x:Key="Status.SubtitleConversionRequiresFfmpeg">La conversion des sous-titres nécessite FFmpeg</system:String>
 
     <system:String x:Key="Dialog.ImportTitle">Importer une liste de liens</system:String>
     <system:String x:Key="Dialog.TextFilesFilter">Fichiers texte (*.txt)|*.txt|Tous les fichiers (*.*)|*.*</system:String>
@@ -149,11 +194,16 @@
     <system:String x:Key="Dialog.PlaylistMessage">Le mode playlist est activé. ClipPull autorisera jusqu’à {0} éléments par lien de playlist.&#x0a;&#x0a;Continuer?</system:String>
     <system:String x:Key="Dialog.FfmpegTitle">FFmpeg requis</system:String>
     <system:String x:Key="Dialog.FfmpegMessage">Cette option nécessite FFmpeg. Au premier usage, ClipPull téléchargera environ 140 Mo depuis le projet BtbN/FFmpeg-Builds, puis vérifiera le SHA-256 avant extraction.&#x0a;&#x0a;Continuer?</system:String>
+    <system:String x:Key="Dialog.AutoFallbackFfmpegMessage">Cette vidéo n’offre aucun flux combiné prêt à l’emploi. ClipPull peut télécharger les flux vidéo et audio séparément, puis les fusionner avec FFmpeg. Au premier usage, le téléchargement vérifié de FFmpeg est d’environ 140 Mo.&#x0a;&#x0a;Continuer?</system:String>
     <system:String x:Key="Dialog.ClearHistoryTitle">Effacer l’historique</system:String>
     <system:String x:Key="Dialog.ClearHistoryMessage">Effacer l’historique local des téléchargements? Les fichiers déjà téléchargés ne seront pas supprimés.</system:String>
+    <system:String x:Key="Dialog.SubtitleFfmpegTitle">Sous-titres</system:String>
+    <system:String x:Key="Dialog.SubtitleFfmpegMessage">La conversion de ce sous-titre en SRT nécessite FFmpeg (environ 140 Mo, installé une seule fois et vérifié par SHA-256). Continuer pour l’installer maintenant, ou conserver le sous-titre dans son format d’origine?</system:String>
+    <system:String x:Key="Dialog.KeepOriginalFormat">Conserver le format d’origine</system:String>
 
     <system:String x:Key="Service.StartYtDlpFailed">Impossible de démarrer yt-dlp.</system:String>
     <system:String x:Key="Service.YtDlpNoDetail">yt-dlp a retourné une erreur sans détail.</system:String>
+    <system:String x:Key="Service.AutoFallbackDeclined">Le repli vidéo + audio nécessite FFmpeg et a été annulé.</system:String>
     <system:String x:Key="Service.PreviewFailed">Impossible d’obtenir l’aperçu.</system:String>
     <system:String x:Key="Service.Untitled">Sans titre</system:String>
     <system:String x:Key="Service.FilesDownloadedOne">1 fichier téléchargé.</system:String>
@@ -188,4 +238,6 @@
     <system:String x:Key="Service.FfmpegArchiveMissingBinaries">L’archive FFmpeg vérifiée ne contient pas les exécutables attendus.</system:String>
     <system:String x:Key="Service.FfmpegReady">FFmpeg prêt.</system:String>
     <system:String x:Key="Service.FfmpegFileMissing">{0} est absent de l’archive FFmpeg.</system:String>
+    <system:String x:Key="Service.NoSubtitlesAvailable">Aucun sous-titre disponible</system:String>
+    <system:String x:Key="Service.NoSubtitlesAvailableLanguage">Aucun sous-titre disponible dans la langue choisie</system:String>
 </ResourceDictionary>

@@ -7,8 +7,8 @@ namespace ClipPull.Localization;
 
 internal static class LocalizationService
 {
-    private const string EnglishDictionary = "Resources/Strings.en.xaml";
-    private const string FrenchDictionary = "Resources/Strings.fr.xaml";
+    private const string EnglishDictionary = "pack://application:,,,/ClipPull;component/Resources/Strings.en.xaml";
+    private const string FrenchDictionary = "pack://application:,,,/ClipPull;component/Resources/Strings.fr.xaml";
 
     internal static readonly string PreferencePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -22,9 +22,9 @@ internal static class LocalizationService
         ? CultureInfo.GetCultureInfo("fr-CA")
         : CultureInfo.GetCultureInfo("en-CA");
 
-    public static void Initialize()
+    public static void Initialize(string? preference = null)
     {
-        ApplyLanguage(LoadPreference(), persist: false, notify: false);
+        ApplyLanguage(preference is null ? LoadPreference() : ParsePreference(preference), persist: false, notify: false);
     }
 
     public static void SetLanguage(AppLanguage language)
@@ -100,7 +100,7 @@ internal static class LocalizationService
             dictionary.Source?.OriginalString.Contains("Resources/Strings.", StringComparison.OrdinalIgnoreCase) == true);
         var replacement = new ResourceDictionary
         {
-            Source = new Uri(language == AppLanguage.French ? FrenchDictionary : EnglishDictionary, UriKind.Relative)
+            Source = new Uri(language == AppLanguage.French ? FrenchDictionary : EnglishDictionary, UriKind.Absolute)
         };
 
         if (existing is null)

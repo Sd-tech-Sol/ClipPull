@@ -17,15 +17,19 @@ ClipPull passes URLs to yt-dlp and can therefore work with sites supported by th
 - Windows 10/11 x64 and one portable `ClipPull.exe`
 - English and French interface; English is the first-launch default and can be changed instantly in Settings
 - Multiple links at once, processed sequentially
-- Visible queue, progress, duplicate filtering, and retry of failed items
-- Video quality selection: Auto, best, 1080p, 720p, 480p, or smaller file
+- Visible queue with speed/ETA, removable waiting or finished items, duplicate filtering, and retry of failed items
+- Video quality selection: Auto, best, 1080p, 720p, 480p, or smaller file; Auto prefers a ready-to-use stream and falls back to a verified FFmpeg merge only when needed
 - Audio-only M4A or MP3
+- Optional subtitles: with the media, subtitles only (no video/audio download), Automatic/English/French/all available languages, and an optional fallback to auto-generated captions; official subtitles are always preferred over automatic ones, and ClipPull saves SRT when it can be produced without an unwanted FFmpeg install
 - Optional playlists with a configurable safety limit
 - Drag-and-drop or import of `.txt` link lists
 - Optional local download history through yt-dlp's `--download-archive`
 - Copyable error reports
 - Preview with title, platform, duration, and thumbnail when available
 - Optional browser-session support through `--cookies-from-browser`
+- Persistent preferences and window size/state in `%LOCALAPPDATA%\ClipPull\settings.json`
+- Non-blocking ClipPull update notifications through official GitHub Releases, with no automatic executable download or replacement
+- About surface with version, license, acknowledgements, and project links
 
 ## Automatic dependency updates
 
@@ -61,7 +65,7 @@ GitHub Actions also builds the Windows executable, calculates its SHA-256, and p
 
 ClipPull is an original project by **Sébastien Dubé**. The idea, product direction, requirements, priorities, approvals, and final decisions are his.
 
-Development was AI-assisted: **OpenAI ChatGPT and OpenAI Codex** were used for architecture, implementation, documentation, GitHub automation, and build/release verification under his direction and review. No AI tool is an author, owner, or maintainer of this project, and use of OpenAI tools implies no affiliation with or endorsement by OpenAI.
+Development was AI-assisted using **OpenAI ChatGPT**, **Anthropic Claude Code**, and **OpenAI Codex** for the roles described in the full disclosure. No AI tool is an author, owner, or maintainer, and use of these tools implies no affiliation with or endorsement by OpenAI or Anthropic.
 
 **Final responsibility and maintenance rest with Sébastien Dubé.** See [`AI_ASSISTANCE.md`](AI_ASSISTANCE.md) for the full disclosure.
 

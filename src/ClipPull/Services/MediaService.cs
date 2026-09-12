@@ -11,26 +11,35 @@ namespace ClipPull.Services;
 
 internal sealed partial class MediaService
 {
+    private const string ProgressPrefix = "CLIPPULL_PROGRESS|";
+
     public async Task<DownloadResult> DownloadAsync(
         string enginePath,
         string url,
         string outputDirectory,
         DownloadSettings settings,
-        IProgress<double>? progress,
+        IProgress<DownloadProgress>? progress,
         Action<LocalizedMessage>? status,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool useAutoFallback = false)
     {
         Directory.CreateDirectory(outputDirectory);
         var outputTemplate = Path.Combine(outputDirectory, "%(title).180s [%(id)s].%(ext)s");
         var startInfo = BaseStartInfo(enginePath);
+        var isSubtitlesOnly = settings.SubtitleMode == SubtitleMode.SubtitlesOnly;
 
         Add(startInfo, "--ignore-config");
         Add(startInfo, "--no-plugin-dirs");
         Add(startInfo, "--newline");
+        Add(startInfo, "--progress");
+        // --print implies --quiet, which would otherwise suppress the "[info] Writing
+        // video subtitles to: ..." line that subtitle detection below depends on.
+        Add(startInfo, "--no-quiet");
         Add(startInfo, "--windows-filenames");
         Add(startInfo, "--no-overwrites");
         Add(startInfo, "--output", outputTemplate);
-        Add(startInfo, "--progress-template", "download:CLIPPULL_PROGRESS=%(progress._percent_str)s");
+        Add(startInfo, "--progress-template",
+            "download:CLIPPULL_PROGRESS|%(progress.downloaded_bytes|0)d|%(progress.total_bytes,progress.total_bytes_estimate|0)d|%(progress.speed|0).3f|%(progress.eta|-1)d");
         Add(startInfo, "--print", "after_move:CLIPPULL_FILE=%(filepath)s");
 
         if (settings.AllowPlaylists)
@@ -44,8 +53,8 @@ internal sealed partial class MediaService
             Add(startInfo, "--no-playlist");
         }
 
-        if (settings.UseHistory && !string.IsNullOrWhiteSpace(settings.ArchivePath))
-            Add(startInfo, "--download-archive", settings.ArchivePath);
+        if (ShouldUseDownloadArchive(settings))
+            Add(startInfo, "--download-archive", settings.ArchivePath!);
 
         if (!string.IsNullOrWhiteSpace(settings.Browser))
             Add(startInfo, "--cookies-from-browser", settings.Browser.ToLowerInvariant());
@@ -53,11 +62,17 @@ internal sealed partial class MediaService
         if (!string.IsNullOrWhiteSpace(settings.FfmpegDirectory))
             Add(startInfo, "--ffmpeg-location", settings.FfmpegDirectory);
 
-        ConfigureFormat(startInfo, settings);
+        if (isSubtitlesOnly)
+            Add(startInfo, "--skip-download");
+        else
+            ConfigureFormat(startInfo, settings, useAutoFallback);
+
+        ConfigureSubtitles(startInfo, settings);
         Add(startInfo, url);
 
         var errors = new Queue<string>();
         var files = new List<string>();
+        var subtitleFiles = new List<string>();
         var archiveHit = false;
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
@@ -77,25 +92,39 @@ internal sealed partial class MediaService
                 return;
             }
 
+            if (IsSubtitleWrittenLine(line, out var subtitleFile))
+            {
+                if (!string.IsNullOrWhiteSpace(subtitleFile))
+                    subtitleFiles.Add(subtitleFile);
+                status?.Invoke(new("Status.DownloadingSubtitles"));
+                return;
+            }
+
             if (line.Contains("recorded in the archive", StringComparison.OrdinalIgnoreCase))
                 archiveHit = true;
 
-            var match = ProgressRegex().Match(line);
-            if (match.Success && double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+            if (TryParseProgress(line, out var downloadProgress))
             {
-                progress?.Report(Math.Clamp(percent, 0, 100));
-                status?.Invoke(new("Queue.DownloadingProgress", percent));
+                progress?.Report(downloadProgress);
+                status?.Invoke(new("Queue.DownloadingProgress", downloadProgress.Percent));
             }
         }, cancellationToken);
 
         var stderrTask = PumpAsync(process.StandardError, line =>
         {
+            if (TryParseProgress(line, out var downloadProgress))
+            {
+                progress?.Report(downloadProgress);
+                status?.Invoke(new("Queue.DownloadingProgress", downloadProgress.Percent));
+                return;
+            }
+
             if (line.Contains("recorded in the archive", StringComparison.OrdinalIgnoreCase))
                 archiveHit = true;
             lock (errors)
             {
                 errors.Enqueue(line);
-                while (errors.Count > 20)
+                while (errors.Count > 100)
                     errors.Dequeue();
             }
         }, cancellationToken);
@@ -103,23 +132,146 @@ internal sealed partial class MediaService
         await process.WaitForExitAsync(cancellationToken);
         await Task.WhenAll(stdoutTask, stderrTask);
 
-        if (process.ExitCode != 0)
+        string errorDetail;
+        lock (errors)
+            errorDetail = string.Join(Environment.NewLine, errors.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        if (!useAutoFallback && !isSubtitlesOnly && settings.Mode == MediaMode.Video && settings.Quality == VideoQuality.Auto &&
+            IsRequestedFormatUnavailable(errors))
         {
-            string detail;
-            lock (errors)
-                detail = string.Join(Environment.NewLine, errors.Where(x => !string.IsNullOrWhiteSpace(x)));
-            if (string.IsNullOrWhiteSpace(detail))
-                throw new LocalizedException("Service.YtDlpNoDetail");
-            throw new InvalidOperationException(detail);
+            throw new RequestedFormatUnavailableException(errorDetail, files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
         }
 
-        progress?.Report(100);
+        if (process.ExitCode != 0)
+        {
+            if (string.IsNullOrWhiteSpace(errorDetail))
+                throw new LocalizedException("Service.YtDlpNoDetail");
+            throw new InvalidOperationException(errorDetail);
+        }
+
+        // yt-dlp exits 0 even when no subtitle matched the requested language(s); a
+        // subtitles-only request with nothing written is therefore this feature's own
+        // failure condition, not a process error.
+        if (isSubtitlesOnly && subtitleFiles.Count == 0)
+        {
+            throw new LocalizedException(settings.SubtitleLanguage == SubtitleLanguagePreference.All
+                ? "Service.NoSubtitlesAvailable"
+                : "Service.NoSubtitlesAvailableLanguage");
+        }
+
+        progress?.Report(new DownloadProgress(100, null, TimeSpan.Zero));
         if (archiveHit && files.Count == 0)
             status?.Invoke(new("Service.AlreadyDownloadedHistory"));
         else if (files.Count > 1)
             status?.Invoke(new("Service.FilesDownloadedMany", files.Count));
 
-        return new DownloadResult(files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        // The "Writing video subtitles to: ..." line is recorded before yt-dlp's own
+        // --convert-subs postprocessor runs; resolve each entry to whatever actually
+        // exists on disk now instead of trusting the pre-conversion name.
+        var resolvedSubtitleFiles = subtitleFiles
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(ResolveFinalSubtitlePath)
+            .Where(path => path is not null)
+            .Select(path => path!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new DownloadResult(
+            files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            resolvedSubtitleFiles);
+    }
+
+    /// <summary>
+    /// Resolves a subtitle path recorded from yt-dlp's own "Writing video subtitles to"
+    /// line to whatever actually exists on disk once post-processing has finished.
+    /// Never returns a path that does not exist.
+    /// </summary>
+    internal static string? ResolveFinalSubtitlePath(string recordedPath)
+    {
+        if (string.Equals(Path.GetExtension(recordedPath), ".srt", StringComparison.OrdinalIgnoreCase) &&
+            File.Exists(recordedPath))
+        {
+            return recordedPath;
+        }
+
+        var srtPath = Path.ChangeExtension(recordedPath, ".srt");
+        if (File.Exists(srtPath))
+            return srtPath;
+
+        return File.Exists(recordedPath) ? recordedPath : null;
+    }
+
+    /// <summary>
+    /// Converts one subtitle file to SRT using ClipPull's already-verified FFmpeg
+    /// installation, as a small local step run after the yt-dlp download instead of
+    /// re-invoking yt-dlp. Returns the new .srt path on success, or null if conversion
+    /// was not possible or failed -- in which case the original file is left untouched.
+    /// </summary>
+    internal static async Task<string?> ConvertSubtitleToSrtAsync(
+        string ffmpegDirectory, string subtitlePath, CancellationToken cancellationToken)
+    {
+        if (string.Equals(Path.GetExtension(subtitlePath), ".srt", StringComparison.OrdinalIgnoreCase))
+            return File.Exists(subtitlePath) ? subtitlePath : null;
+
+        if (!File.Exists(subtitlePath))
+            return null;
+
+        var targetPath = Path.ChangeExtension(subtitlePath, ".srt");
+        if (File.Exists(targetPath))
+            return targetPath;
+
+        var ffmpegExe = Path.Combine(ffmpegDirectory, "ffmpeg.exe");
+        if (!File.Exists(ffmpegExe))
+            return null;
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = ffmpegExe,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        // -n: never overwrite/prompt if the target already appeared from elsewhere.
+        Add(startInfo, "-nostdin", "-n", "-i", subtitlePath, targetPath);
+
+        var succeeded = false;
+        try
+        {
+            using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+            if (!process.Start())
+                return null;
+
+            using var registration = cancellationToken.Register(() => Kill(process));
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+            await Task.WhenAll(stdoutTask, stderrTask);
+
+            succeeded = process.ExitCode == 0 && File.Exists(targetPath) && new FileInfo(targetPath).Length > 0;
+        }
+        catch (OperationCanceledException)
+        {
+            succeeded = false;
+            throw;
+        }
+        catch
+        {
+            succeeded = false;
+        }
+        finally
+        {
+            if (!succeeded)
+            {
+                try { if (File.Exists(targetPath)) File.Delete(targetPath); } catch { }
+            }
+        }
+
+        if (!succeeded)
+            return null;
+
+        try { File.Delete(subtitlePath); } catch { /* best effort; the srt is what matters */ }
+        return targetPath;
     }
 
     public async Task<MediaPreview> PreviewAsync(
@@ -178,7 +330,7 @@ internal sealed partial class MediaService
         return new MediaPreview(title, platform, thumbnail, duration, playlistCount);
     }
 
-    private static void ConfigureFormat(ProcessStartInfo startInfo, DownloadSettings settings)
+    internal static void ConfigureFormat(ProcessStartInfo startInfo, DownloadSettings settings, bool useAutoFallback)
     {
         if (settings.Mode is MediaMode.AudioM4a or MediaMode.AudioMp3)
         {
@@ -196,11 +348,99 @@ internal sealed partial class MediaService
             VideoQuality.P720 => "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=720]",
             VideoQuality.P480 => "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best[height<=480]",
             VideoQuality.Small => "worst[ext=mp4]/worst",
+            _ when useAutoFallback => "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio",
             _ => "best[ext=mp4]/best"
         };
         Add(startInfo, "--format", format);
-        if (settings.Quality is VideoQuality.Best or VideoQuality.P1080 or VideoQuality.P720 or VideoQuality.P480)
+        if (useAutoFallback || settings.Quality is VideoQuality.Best or VideoQuality.P1080 or VideoQuality.P720 or VideoQuality.P480)
             Add(startInfo, "--merge-output-format", "mp4/mkv");
+    }
+
+    // A subtitles-only request must never consult the media download archive: an
+    // already-archived video id makes yt-dlp skip the whole entry, including subtitle
+    // extraction, before ever reaching --write-subs.
+    internal static bool ShouldUseDownloadArchive(DownloadSettings settings) =>
+        settings.SubtitleMode != SubtitleMode.SubtitlesOnly &&
+        settings.UseHistory &&
+        !string.IsNullOrWhiteSpace(settings.ArchivePath);
+
+    internal static void ConfigureSubtitles(ProcessStartInfo startInfo, DownloadSettings settings)
+    {
+        if (settings.SubtitleMode == SubtitleMode.Off)
+            return;
+
+        Add(startInfo, "--write-subs");
+        Add(startInfo, "--sub-format", "srt/best");
+
+        var isAllAvailable = settings.SubtitleLanguage == SubtitleLanguagePreference.All;
+        // The caller (MainViewModel) resolves "Automatic" to the current interface
+        // language before building these settings; English is a deterministic,
+        // LocalizationService-free fallback if this is ever reached unresolved.
+        var langPattern = settings.SubtitleLanguage switch
+        {
+            SubtitleLanguagePreference.French => "fr.*",
+            SubtitleLanguagePreference.All => "all,-live_chat",
+            _ => "en.*"
+        };
+        Add(startInfo, "--sub-langs", langPattern);
+
+        // "All available" downloads official subtitle tracks only: combining it with
+        // auto-generated captions would pull in every machine-translated language yt-dlp
+        // exposes for some sites (over a hundred for popular YouTube videos).
+        if (settings.UseAutomaticSubtitleFallback && !isAllAvailable)
+            Add(startInfo, "--write-auto-subs");
+
+        // yt-dlp prefers a manually authored track over an auto-generated one for the same
+        // language when both --write-subs and --write-auto-subs are given, so this never
+        // produces a duplicate official+auto pair for one language.
+
+        if (settings.ConvertSubtitlesToSrt)
+            Add(startInfo, "--convert-subs", "srt");
+    }
+
+    internal static bool IsSubtitleWrittenLine(string line, out string path)
+    {
+        var match = SubtitleWrittenRegex().Match(line);
+        path = match.Success ? match.Groups[1].Value.Trim() : string.Empty;
+        return match.Success;
+    }
+
+    internal static bool TryParseProgress(string line, out DownloadProgress progress)
+    {
+        progress = new DownloadProgress(0, null, null);
+        if (!line.StartsWith(ProgressPrefix, StringComparison.Ordinal))
+            return false;
+
+        var fields = line[ProgressPrefix.Length..].Split('|');
+        if (fields.Length != 4 ||
+            !long.TryParse(fields[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var downloaded) ||
+            !long.TryParse(fields[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var total))
+        {
+            return false;
+        }
+
+        var percent = total > 0 ? Math.Clamp(downloaded * 100d / total, 0, 100) : 0;
+        double? speed = double.TryParse(fields[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedSpeed) && parsedSpeed > 0
+            ? parsedSpeed
+            : null;
+        TimeSpan? eta = long.TryParse(fields[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var etaSeconds) && etaSeconds >= 0
+            ? TimeSpan.FromSeconds(Math.Min(etaSeconds, TimeSpan.MaxValue.TotalSeconds))
+            : null;
+
+        progress = new DownloadProgress(percent, speed, eta);
+        return true;
+    }
+
+    internal static bool IsRequestedFormatUnavailable(IEnumerable<string> errorLines)
+    {
+        var lines = errorLines.Where(line => !string.IsNullOrWhiteSpace(line)).ToArray();
+        if (lines.Any(line => line.Contains("Only images are available", StringComparison.OrdinalIgnoreCase) ||
+                              line.Contains("challenge solving failed", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        return lines.Any(line => RequestedFormatUnavailableRegex().IsMatch(line));
     }
 
     private static ProcessStartInfo BaseStartInfo(string enginePath) => new()
@@ -245,6 +485,9 @@ internal sealed partial class MediaService
     private static int? ReadInt(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.TryGetInt32(out var number) ? number : null;
 
-    [GeneratedRegex(@"CLIPPULL_PROGRESS=\s*([0-9]+(?:\.[0-9]+)?)%", RegexOptions.CultureInvariant)]
-    private static partial Regex ProgressRegex();
+    [GeneratedRegex(@"^ERROR:\s+.*Requested format is not available\. Use --list-formats for a list of available formats\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex RequestedFormatUnavailableRegex();
+
+    [GeneratedRegex(@"^\[info\]\s+Writing video subtitles to:\s*(.+)$", RegexOptions.CultureInvariant)]
+    private static partial Regex SubtitleWrittenRegex();
 }

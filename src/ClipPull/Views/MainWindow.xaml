@@ -125,12 +125,14 @@
                         ToolTip="{DynamicResource Settings.Title}" />
 
                     <ui:Flyout
+                        x:Name="SettingsFlyout"
                         Placement="Left"
                         IsOpen="{Binding IsAdvancedOpen}"
                         Background="{DynamicResource ClipPullSurfaceElevatedBrush}"
                         BorderBrush="{DynamicResource ClipPullBorderStrongBrush}"
                         Foreground="{DynamicResource ClipPullTextPrimaryBrush}">
                         <ScrollViewer
+                            x:Name="SettingsScroller"
                             Width="320"
                             MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType={x:Type ui:FluentWindow}}, Converter={StaticResource SettingsMaxHeightConverter}}"
                             HorizontalScrollBarVisibility="Disabled"
@@ -219,6 +221,48 @@
                                     IsEnabled="{Binding IsPlaylistLimitEnabled}" />
                             </Grid>
 
+                            <TextBlock Text="{DynamicResource Settings.Subtitles}" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="150" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{DynamicResource Subtitles.ModeLabel}" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" />
+                                <ComboBox
+                                    x:Name="SubtitleModeSelector"
+                                    Grid.Column="1"
+                                    SelectedIndex="{Binding SubtitleModeIndex}"
+                                    IsEnabled="{Binding IsNotBusy}">
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.ModeOff}" />
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.ModeWithMedia}" />
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.ModeSubtitlesOnly}" />
+                                </ComboBox>
+                            </Grid>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="150" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{DynamicResource Subtitles.LanguageLabel}" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" />
+                                <ComboBox
+                                    x:Name="SubtitleLanguageSelector"
+                                    Grid.Column="1"
+                                    SelectedIndex="{Binding SubtitleLanguageIndex}"
+                                    IsEnabled="{Binding IsSubtitleLanguageEnabled}">
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.LanguageAutomatic}" />
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.LanguageEnglish}" />
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.LanguageFrench}" />
+                                    <ComboBoxItem Content="{DynamicResource Subtitles.LanguageAll}" ToolTip="{DynamicResource Subtitles.LanguageAllTooltip}" />
+                                </ComboBox>
+                            </Grid>
+                            <ui:ToggleSwitch
+                                OnContent="{DynamicResource Subtitles.UseAutoFallback}"
+                                OffContent="{DynamicResource Subtitles.UseAutoFallback}"
+                                IsChecked="{Binding UseAutomaticSubtitleFallback}"
+                                IsEnabled="{Binding IsSubtitleFallbackEnabled}"
+                                ToolTip="{DynamicResource Subtitles.UseAutoFallbackTooltip}"
+                                Margin="0,0,0,16" />
+
                             <TextBlock Text="{DynamicResource Settings.BrowserSession}" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
                             <ui:ToggleSwitch
                                 OnContent="{DynamicResource Settings.UseBrowserSession}"
@@ -251,6 +295,43 @@
                                 <TextBlock Text="FFmpeg" Style="{StaticResource SecondaryTextStyle}" />
                                 <TextBlock Grid.Column="1" Text="{Binding FfmpegStatusText}" Style="{StaticResource CaptionTextStyle}" />
                             </Grid>
+
+                            <Border Height="1" Background="{DynamicResource ClipPullDividerBrush}" Margin="0,14,0,14" />
+                            <TextBlock Text="{DynamicResource About.Title}" Style="{StaticResource SectionHeadingStyle}" Margin="0,0,0,8" />
+                            <TextBlock Text="ClipPull" Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold" />
+                            <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="0,2,0,0">
+                                <Run Text="{DynamicResource About.Version}" />
+                                <Run Text=" " />
+                                <Run Text="{Binding AppVersion, Mode=OneWay}" />
+                            </TextBlock>
+                            <TextBlock
+                                Text="{DynamicResource About.Description}"
+                                Style="{StaticResource SecondaryTextStyle}"
+                                TextWrapping="Wrap"
+                                Margin="0,4,0,10" />
+                            <ui:ToggleSwitch
+                                OnContent="{DynamicResource Update.Automatic}"
+                                OffContent="{DynamicResource Update.Automatic}"
+                                IsChecked="{Binding CheckForUpdates}"
+                                Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <ui:Button
+                                    Content="{DynamicResource Update.Check}"
+                                    Icon="{ui:SymbolIcon ArrowSync20}"
+                                    Command="{Binding CheckForUpdatesCommand}"
+                                    IsEnabled="{Binding CanCheckForUpdates}" />
+                                <TextBlock
+                                    Text="{Binding UpdateStatusText}"
+                                    Style="{StaticResource CaptionTextStyle}"
+                                    VerticalAlignment="Center"
+                                    Margin="8,0,0,0" />
+                            </StackPanel>
+                            <WrapPanel Margin="0,0,0,8">
+                                <ui:Button Content="GitHub" Appearance="Transparent" Command="{Binding OpenGitHubCommand}" Margin="0,0,4,0" />
+                                <ui:Button Content="{DynamicResource About.License}" Appearance="Transparent" Command="{Binding OpenLicenseCommand}" Margin="0,0,4,0" />
+                                <ui:Button Content="{DynamicResource About.AiAssistance}" Appearance="Transparent" Command="{Binding OpenAiAssistanceCommand}" />
+                            </WrapPanel>
+                            <TextBlock Text="{DynamicResource About.Acknowledgements}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                         </StackPanel>
                         </ScrollViewer>
                     </ui:Flyout>
@@ -630,24 +711,46 @@
 
                                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
                                                 <ui:SymbolIcon Style="{StaticResource QueueStateIconStyle}" Margin="0,0,6,0" />
-                                                <TextBlock
-                                                    Text="{Binding StatusDisplayText}"
-                                                    Style="{StaticResource CaptionTextStyle}"
-                                                    MinWidth="92"
-                                                    TextAlignment="Right"
-                                                    VerticalAlignment="Center" />
+                                                <StackPanel MinWidth="118" VerticalAlignment="Center">
+                                                    <TextBlock
+                                                        Text="{Binding StatusDisplayText}"
+                                                        Style="{StaticResource CaptionTextStyle}"
+                                                        TextAlignment="Right" />
+                                                    <TextBlock
+                                                        Text="{Binding TransferDetailText}"
+                                                        Style="{StaticResource CaptionTextStyle}"
+                                                        TextAlignment="Right"
+                                                        Foreground="{DynamicResource ClipPullTextSecondaryBrush}"
+                                                        Visibility="{Binding State, Converter={StaticResource ActiveStateToVisibilityConverter}}" />
+                                                    <TextBlock
+                                                        Text="{Binding SubtitleStatusText}"
+                                                        Style="{StaticResource CaptionTextStyle}"
+                                                        TextAlignment="Right"
+                                                        Foreground="{DynamicResource ClipPullTextSecondaryBrush}"
+                                                        Visibility="{Binding HasSubtitleStatus, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                </StackPanel>
                                             </StackPanel>
 
-                                            <ui:Button
-                                                Grid.Column="3"
-                                                Appearance="Transparent"
-                                                AutomationProperties.Name="{DynamicResource Queue.RetryItemAutomation}"
-                                                Icon="{ui:SymbolIcon ArrowClockwise16}"
-                                                ToolTip="{DynamicResource Common.Retry}"
-                                                Padding="5"
-                                                Command="{Binding DataContext.RetryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}"
-                                                Visibility="{Binding CanRetry, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                                <ui:Button
+                                                    Appearance="Transparent"
+                                                    AutomationProperties.Name="{DynamicResource Queue.RetryItemAutomation}"
+                                                    Icon="{ui:SymbolIcon ArrowClockwise16}"
+                                                    ToolTip="{DynamicResource Common.Retry}"
+                                                    Padding="5"
+                                                    Command="{Binding DataContext.RetryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding CanRetry, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                <ui:Button
+                                                    Appearance="Transparent"
+                                                    AutomationProperties.Name="{DynamicResource Queue.Remove}"
+                                                    Icon="{ui:SymbolIcon Dismiss16}"
+                                                    ToolTip="{DynamicResource Queue.Remove}"
+                                                    Padding="5"
+                                                    IsEnabled="{Binding CanRemove}"
+                                                    Command="{Binding DataContext.RemoveQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}" />
+                                            </StackPanel>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -694,13 +797,36 @@
                     Margin="4,0,0,0" />
             </Grid>
 
-            <ui:InfoBar
-                Grid.Row="5"
-                Title="{Binding InfoBarTitle}"
-                Message="{Binding InfoBarMessage}"
-                Severity="{Binding InfoBarSeverity}"
-                IsOpen="{Binding IsInfoBarOpen}"
-                IsClosable="True" />
+            <StackPanel Grid.Row="5">
+                <Border
+                    Background="{DynamicResource ClipPullSurfaceSecondaryBrush}"
+                    BorderBrush="{DynamicResource ClipPullBorderStrongBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="10,7"
+                    Margin="0,0,0,6"
+                    Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding UpdateAvailableText}" Style="{StaticResource SecondaryTextStyle}" VerticalAlignment="Center" />
+                        <ui:Button
+                            Grid.Column="1"
+                            Content="{DynamicResource Update.View}"
+                            Appearance="Transparent"
+                            Icon="{ui:SymbolIcon Open20}"
+                            Command="{Binding ViewUpdateCommand}" />
+                    </Grid>
+                </Border>
+                <ui:InfoBar
+                    Title="{Binding InfoBarTitle}"
+                    Message="{Binding InfoBarMessage}"
+                    Severity="{Binding InfoBarSeverity}"
+                    IsOpen="{Binding IsInfoBarOpen}"
+                    IsClosable="True" />
+            </StackPanel>
         </Grid>
     </Grid>
 </ui:FluentWindow>

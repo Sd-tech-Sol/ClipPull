@@ -11,14 +11,17 @@ namespace ClipPull.Services;
 
 internal sealed partial class MediaService
 {
+    private const string ProgressPrefix = "CLIPPULL_PROGRESS|";
+
     public async Task<DownloadResult> DownloadAsync(
         string enginePath,
         string url,
         string outputDirectory,
         DownloadSettings settings,
-        IProgress<double>? progress,
+        IProgress<DownloadProgress>? progress,
         Action<LocalizedMessage>? status,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool useAutoFallback = false)
     {
         Directory.CreateDirectory(outputDirectory);
         var outputTemplate = Path.Combine(outputDirectory, "%(title).180s [%(id)s].%(ext)s");
@@ -27,10 +30,12 @@ internal sealed partial class MediaService
         Add(startInfo, "--ignore-config");
         Add(startInfo, "--no-plugin-dirs");
         Add(startInfo, "--newline");
+        Add(startInfo, "--progress");
         Add(startInfo, "--windows-filenames");
         Add(startInfo, "--no-overwrites");
         Add(startInfo, "--output", outputTemplate);
-        Add(startInfo, "--progress-template", "download:CLIPPULL_PROGRESS=%(progress._percent_str)s");
+        Add(startInfo, "--progress-template",
+            "download:CLIPPULL_PROGRESS|%(progress.downloaded_bytes|0)d|%(progress.total_bytes,progress.total_bytes_estimate|0)d|%(progress.speed|0).3f|%(progress.eta|-1)d");
         Add(startInfo, "--print", "after_move:CLIPPULL_FILE=%(filepath)s");
 
         if (settings.AllowPlaylists)
@@ -53,7 +58,7 @@ internal sealed partial class MediaService
         if (!string.IsNullOrWhiteSpace(settings.FfmpegDirectory))
             Add(startInfo, "--ffmpeg-location", settings.FfmpegDirectory);
 
-        ConfigureFormat(startInfo, settings);
+        ConfigureFormat(startInfo, settings, useAutoFallback);
         Add(startInfo, url);
 
         var errors = new Queue<string>();
@@ -80,22 +85,28 @@ internal sealed partial class MediaService
             if (line.Contains("recorded in the archive", StringComparison.OrdinalIgnoreCase))
                 archiveHit = true;
 
-            var match = ProgressRegex().Match(line);
-            if (match.Success && double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+            if (TryParseProgress(line, out var downloadProgress))
             {
-                progress?.Report(Math.Clamp(percent, 0, 100));
-                status?.Invoke(new("Queue.DownloadingProgress", percent));
+                progress?.Report(downloadProgress);
+                status?.Invoke(new("Queue.DownloadingProgress", downloadProgress.Percent));
             }
         }, cancellationToken);
 
         var stderrTask = PumpAsync(process.StandardError, line =>
         {
+            if (TryParseProgress(line, out var downloadProgress))
+            {
+                progress?.Report(downloadProgress);
+                status?.Invoke(new("Queue.DownloadingProgress", downloadProgress.Percent));
+                return;
+            }
+
             if (line.Contains("recorded in the archive", StringComparison.OrdinalIgnoreCase))
                 archiveHit = true;
             lock (errors)
             {
                 errors.Enqueue(line);
-                while (errors.Count > 20)
+                while (errors.Count > 100)
                     errors.Dequeue();
             }
         }, cancellationToken);
@@ -103,17 +114,24 @@ internal sealed partial class MediaService
         await process.WaitForExitAsync(cancellationToken);
         await Task.WhenAll(stdoutTask, stderrTask);
 
-        if (process.ExitCode != 0)
+        string errorDetail;
+        lock (errors)
+            errorDetail = string.Join(Environment.NewLine, errors.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        if (!useAutoFallback && settings.Mode == MediaMode.Video && settings.Quality == VideoQuality.Auto &&
+            IsRequestedFormatUnavailable(errors))
         {
-            string detail;
-            lock (errors)
-                detail = string.Join(Environment.NewLine, errors.Where(x => !string.IsNullOrWhiteSpace(x)));
-            if (string.IsNullOrWhiteSpace(detail))
-                throw new LocalizedException("Service.YtDlpNoDetail");
-            throw new InvalidOperationException(detail);
+            throw new RequestedFormatUnavailableException(errorDetail, files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
         }
 
-        progress?.Report(100);
+        if (process.ExitCode != 0)
+        {
+            if (string.IsNullOrWhiteSpace(errorDetail))
+                throw new LocalizedException("Service.YtDlpNoDetail");
+            throw new InvalidOperationException(errorDetail);
+        }
+
+        progress?.Report(new DownloadProgress(100, null, TimeSpan.Zero));
         if (archiveHit && files.Count == 0)
             status?.Invoke(new("Service.AlreadyDownloadedHistory"));
         else if (files.Count > 1)
@@ -178,7 +196,7 @@ internal sealed partial class MediaService
         return new MediaPreview(title, platform, thumbnail, duration, playlistCount);
     }
 
-    private static void ConfigureFormat(ProcessStartInfo startInfo, DownloadSettings settings)
+    internal static void ConfigureFormat(ProcessStartInfo startInfo, DownloadSettings settings, bool useAutoFallback)
     {
         if (settings.Mode is MediaMode.AudioM4a or MediaMode.AudioMp3)
         {
@@ -196,11 +214,50 @@ internal sealed partial class MediaService
             VideoQuality.P720 => "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[height<=720]",
             VideoQuality.P480 => "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best[height<=480]",
             VideoQuality.Small => "worst[ext=mp4]/worst",
+            _ when useAutoFallback => "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio",
             _ => "best[ext=mp4]/best"
         };
         Add(startInfo, "--format", format);
-        if (settings.Quality is VideoQuality.Best or VideoQuality.P1080 or VideoQuality.P720 or VideoQuality.P480)
+        if (useAutoFallback || settings.Quality is VideoQuality.Best or VideoQuality.P1080 or VideoQuality.P720 or VideoQuality.P480)
             Add(startInfo, "--merge-output-format", "mp4/mkv");
+    }
+
+    internal static bool TryParseProgress(string line, out DownloadProgress progress)
+    {
+        progress = new DownloadProgress(0, null, null);
+        if (!line.StartsWith(ProgressPrefix, StringComparison.Ordinal))
+            return false;
+
+        var fields = line[ProgressPrefix.Length..].Split('|');
+        if (fields.Length != 4 ||
+            !long.TryParse(fields[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var downloaded) ||
+            !long.TryParse(fields[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var total))
+        {
+            return false;
+        }
+
+        var percent = total > 0 ? Math.Clamp(downloaded * 100d / total, 0, 100) : 0;
+        double? speed = double.TryParse(fields[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedSpeed) && parsedSpeed > 0
+            ? parsedSpeed
+            : null;
+        TimeSpan? eta = long.TryParse(fields[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var etaSeconds) && etaSeconds >= 0
+            ? TimeSpan.FromSeconds(Math.Min(etaSeconds, TimeSpan.MaxValue.TotalSeconds))
+            : null;
+
+        progress = new DownloadProgress(percent, speed, eta);
+        return true;
+    }
+
+    internal static bool IsRequestedFormatUnavailable(IEnumerable<string> errorLines)
+    {
+        var lines = errorLines.Where(line => !string.IsNullOrWhiteSpace(line)).ToArray();
+        if (lines.Any(line => line.Contains("Only images are available", StringComparison.OrdinalIgnoreCase) ||
+                              line.Contains("challenge solving failed", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        return lines.Any(line => RequestedFormatUnavailableRegex().IsMatch(line));
     }
 
     private static ProcessStartInfo BaseStartInfo(string enginePath) => new()
@@ -245,6 +302,6 @@ internal sealed partial class MediaService
     private static int? ReadInt(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.TryGetInt32(out var number) ? number : null;
 
-    [GeneratedRegex(@"CLIPPULL_PROGRESS=\s*([0-9]+(?:\.[0-9]+)?)%", RegexOptions.CultureInvariant)]
-    private static partial Regex ProgressRegex();
+    [GeneratedRegex(@"^ERROR:\s+.*Requested format is not available\. Use --list-formats for a list of available formats\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex RequestedFormatUnavailableRegex();
 }

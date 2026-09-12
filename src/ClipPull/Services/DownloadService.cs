@@ -33,8 +33,11 @@ internal sealed partial class DownloadService
             StandardErrorEncoding = Encoding.UTF8
         };
 
+        Add(startInfo, "--ignore-config");
+        Add(startInfo, "--no-plugin-dirs");
         Add(startInfo, "--no-playlist");
         Add(startInfo, "--newline");
+        Add(startInfo, "--progress");
         Add(startInfo, "--windows-filenames");
         Add(startInfo, "--no-overwrites");
         Add(startInfo, "--format", "best[ext=mp4]/best");
@@ -87,6 +90,14 @@ internal sealed partial class DownloadService
 
         var stderrTask = PumpStdoutAsync(process.StandardError, line =>
         {
+            var match = ProgressRegex().Match(line);
+            if (match.Success && double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+            {
+                progress?.Report(Math.Clamp(percent, 0, 100));
+                status?.Invoke(new("Queue.DownloadingProgress", percent));
+                return;
+            }
+
             lock (errors)
             {
                 errors.Enqueue(line);

@@ -16,10 +16,6 @@ namespace ClipPull.Views;
 
 public partial class MainWindow : FluentWindow
 {
-    private static readonly string ThemePreferencePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ClipPull", "theme-preference.txt");
-
     private static readonly (string Suffix, string[] BrushKeys)[] PaletteBrushMap =
     [
         ("Background", ["ClipPullBackgroundBrush", "ApplicationBackgroundBrush", "LayerFillColorDefaultBrush"]),
@@ -52,12 +48,19 @@ public partial class MainWindow : FluentWindow
     private bool _isInitializingTheme = true;
     private bool _isInitializingLanguage = true;
 
-    internal MainViewModel ViewModel { get; } = new();
+    internal MainViewModel ViewModel { get; }
 
-    public MainWindow()
+    public MainWindow() : this(new MainViewModel())
     {
+    }
+
+    internal MainWindow(MainViewModel viewModel)
+    {
+        ViewModel = viewModel;
         DataContext = ViewModel;
         InitializeComponent();
+
+        RestoreWindowSettings();
 
         var themePreference = LoadThemePreference();
         _isInitializingTheme = true;
@@ -74,11 +77,13 @@ public partial class MainWindow : FluentWindow
         Loaded += async (_, _) =>
         {
             ViewModel.PrefillFromClipboard();
+            _ = ViewModel.RunStartupUpdateCheckAsync();
             await ViewModel.RunStartupChecksAsync();
         };
 
         Closing += (_, _) =>
         {
+            SaveWindowSettings();
             ViewModel.CancelStartupChecks();
             ViewModel.CancelActiveOperation();
         };
@@ -103,24 +108,14 @@ public partial class MainWindow : FluentWindow
         ApplyClipPullPalette(theme);
     }
 
-    private static ThemePreference LoadThemePreference()
+    private ThemePreference LoadThemePreference()
     {
         var forcedValue = Environment.GetEnvironmentVariable("CLIPPULL_THEME");
         if (TryParseThemePreference(forcedValue, out var forcedPreference))
             return forcedPreference;
 
-        try
-        {
-            if (File.Exists(ThemePreferencePath) &&
-                TryParseThemePreference(File.ReadAllText(ThemePreferencePath).Trim(), out var savedPreference))
-            {
-                return savedPreference;
-            }
-        }
-        catch
-        {
-            // Theme persistence is optional; the signature dark theme remains the fallback.
-        }
+        if (TryParseThemePreference(ViewModel.ThemePreference, out var savedPreference))
+            return savedPreference;
 
         return ThemePreference.Dark;
     }
@@ -141,16 +136,7 @@ public partial class MainWindow : FluentWindow
 
         var preference = (ThemePreference)ThemeSelector.SelectedIndex;
         ApplyThemePreference(preference);
-
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(ThemePreferencePath)!);
-            File.WriteAllText(ThemePreferencePath, preference.ToString());
-        }
-        catch
-        {
-            // A read-only profile should not prevent an in-session theme change.
-        }
+        ViewModel.SetThemePreference(preference.ToString());
     }
 
     private void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -158,7 +144,26 @@ public partial class MainWindow : FluentWindow
         if (_isInitializingLanguage || LanguageSelector.SelectedIndex < 0)
             return;
 
-        LocalizationService.SetLanguage((AppLanguage)LanguageSelector.SelectedIndex);
+        var language = (AppLanguage)LanguageSelector.SelectedIndex;
+        LocalizationService.SetLanguage(language);
+        ViewModel.SetLanguagePreference(language);
+    }
+
+    private void RestoreWindowSettings()
+    {
+        var saved = ViewModel.SavedWindow;
+        var workArea = SystemParameters.WorkArea;
+        Width = Math.Clamp(saved.Width, MinWidth, Math.Max(MinWidth, workArea.Width));
+        Height = Math.Clamp(saved.Height, MinHeight, Math.Max(MinHeight, workArea.Height));
+        WindowState = saved.IsMaximized ? WindowState.Maximized : WindowState.Normal;
+    }
+
+    private void SaveWindowSettings()
+    {
+        var bounds = WindowState == WindowState.Normal ? new Rect(Left, Top, ActualWidth, ActualHeight) : RestoreBounds;
+        var width = bounds.Width > 0 && double.IsFinite(bounds.Width) ? bounds.Width : Width;
+        var height = bounds.Height > 0 && double.IsFinite(bounds.Height) ? bounds.Height : Height;
+        ViewModel.SaveWindow(width, height, WindowState == WindowState.Maximized);
     }
 
     private void ApplyThemePreference(ThemePreference preference)

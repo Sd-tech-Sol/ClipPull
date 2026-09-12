@@ -145,7 +145,7 @@ internal sealed partial class YtDlpManager
         {
             Timeout = TimeSpan.FromMinutes(3)
         };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipPull/0.5.0 (+https://github.com/Sd-tech-Sol/ClipPull)");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipPull/0.6.0 (+https://github.com/Sd-tech-Sol/ClipPull)");
         return client;
     }
 

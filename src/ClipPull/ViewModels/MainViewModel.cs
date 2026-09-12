@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Media.Imaging;
@@ -26,6 +27,9 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly YtDlpManager _engineManager = new();
     private readonly FfmpegManager _ffmpegManager = new();
     private readonly MediaService _mediaService = new();
+    private readonly UpdateService _updateService;
+    private readonly SettingsService _settingsService;
+    private readonly AppSettings _settings;
     private readonly List<DownloadError> _lastErrors = [];
 
     private readonly string _archivePath = Path.Combine(
@@ -34,12 +38,31 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private CancellationTokenSource? _activeOperation;
     private CancellationTokenSource? _startupOperation;
+    private readonly SemaphoreSlim _updateCheckGate = new(1, 1);
+    private Uri? _availableReleasePage;
+    private string _updateStatusKey = "Update.NotChecked";
 
-    public MainViewModel()
+    private static readonly Uri RepositoryPage = new("https://github.com/Sd-tech-Sol/ClipPull");
+    private static readonly Uri LicensePage = new("https://github.com/Sd-tech-Sol/ClipPull/blob/main/LICENSE");
+    private static readonly Uri AiAssistancePage = new("https://github.com/Sd-tech-Sol/ClipPull/blob/main/AI_ASSISTANCE.md");
+
+    public MainViewModel() : this(new SettingsService(), new UpdateService())
     {
-        OutputFolder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            "Downloads", "ClipPull");
+    }
+
+    internal MainViewModel(SettingsService settingsService, UpdateService updateService)
+    {
+        _settingsService = settingsService;
+        _updateService = updateService;
+        _settings = _settingsService.Load();
+        _outputFolder = _settings.OutputFolder;
+        _formatIndex = _settings.FormatIndex;
+        _qualityIndex = _settings.QualityIndex;
+        _playlistLimit = _settings.PlaylistLimit;
+        _useHistory = _settings.UseHistory;
+        _useBrowserCookies = _settings.UseBrowserCookies;
+        _selectedBrowser = _settings.SelectedBrowser;
+        _checkForUpdates = _settings.CheckForUpdates;
         Queue.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(IsQueueEmpty));
@@ -56,6 +79,15 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<string> Browsers { get; } =
         ["Chrome", "Edge", "Firefox", "Brave", "Chromium", "Opera", "Vivaldi"];
+
+    public string AppVersion
+    {
+        get
+        {
+            var version = Assembly.GetExecutingAssembly().GetName().Version;
+            return version is null ? "0.6.0" : $"{version.Major}.{version.Minor}.{version.Build}";
+        }
+    }
 
     [ObservableProperty]
     private string _urlsText = string.Empty;
@@ -122,6 +154,7 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsM4aSelected));
         OnPropertyChanged(nameof(IsMp3Selected));
         OnPropertyChanged(nameof(IsQualityEnabled));
+        SaveGeneralSettings();
     }
 
     [ObservableProperty]
@@ -149,7 +182,73 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
     private string _selectedBrowser = "Chrome";
 
     [ObservableProperty]
+    private bool _checkForUpdates = true;
+
+    [ObservableProperty]
     private bool _isAdvancedOpen;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateAvailableText))]
+    private string _availableVersion = string.Empty;
+
+    [ObservableProperty]
+    private bool _isUpdateAvailable;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateStatusText))]
+    [NotifyPropertyChangedFor(nameof(CanCheckForUpdates))]
+    private bool _isCheckingForUpdates;
+
+    public string UpdateAvailableText => L("Update.Available", AvailableVersion);
+
+    public string UpdateStatusText => L(IsCheckingForUpdates ? "Update.Checking" : _updateStatusKey);
+
+    public bool CanCheckForUpdates => !IsCheckingForUpdates;
+
+    internal string ThemePreference => _settings.Theme;
+
+    internal WindowSettings SavedWindow => _settings.Window;
+
+    internal void SetThemePreference(string preference)
+    {
+        _settings.Theme = preference;
+        _settingsService.Save(_settings);
+    }
+
+    internal void SetLanguagePreference(AppLanguage language)
+    {
+        _settings.Language = language.ToString();
+        _settingsService.Save(_settings);
+    }
+
+    internal void SaveWindow(double width, double height, bool isMaximized)
+    {
+        _settings.Window.Width = width;
+        _settings.Window.Height = height;
+        _settings.Window.IsMaximized = isMaximized;
+        _settingsService.Save(_settings);
+    }
+
+    private void SaveGeneralSettings()
+    {
+        _settings.OutputFolder = OutputFolder;
+        _settings.FormatIndex = FormatIndex;
+        _settings.QualityIndex = QualityIndex;
+        _settings.UseHistory = UseHistory;
+        _settings.UseBrowserCookies = UseBrowserCookies;
+        _settings.SelectedBrowser = SelectedBrowser;
+        _settings.PlaylistLimit = PlaylistLimit;
+        _settings.CheckForUpdates = CheckForUpdates;
+        _settingsService.Save(_settings);
+    }
+
+    partial void OnOutputFolderChanged(string value) => SaveGeneralSettings();
+    partial void OnQualityIndexChanged(int value) => SaveGeneralSettings();
+    partial void OnPlaylistLimitChanged(int value) => SaveGeneralSettings();
+    partial void OnUseHistoryChanged(bool value) => SaveGeneralSettings();
+    partial void OnUseBrowserCookiesChanged(bool value) => SaveGeneralSettings();
+    partial void OnSelectedBrowserChanged(string value) => SaveGeneralSettings();
+    partial void OnCheckForUpdatesChanged(bool value) => SaveGeneralSettings();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotBusy))]
@@ -347,6 +446,107 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
             _startupOperation.Dispose();
             _startupOperation = null;
         }
+    }
+
+    public Task RunStartupUpdateCheckAsync()
+    {
+        if (!UpdateService.ShouldRunAutomaticCheck(
+                CheckForUpdates, _settings.LastUpdateCheckUtc, DateTimeOffset.UtcNow, TimeSpan.FromHours(18)))
+        {
+            return Task.CompletedTask;
+        }
+
+        return CheckForUpdatesCoreAsync(manual: false);
+    }
+
+    [RelayCommand]
+    private Task CheckForUpdatesAsync() => CheckForUpdatesCoreAsync(manual: true);
+
+    private async Task CheckForUpdatesCoreAsync(bool manual)
+    {
+        await _updateCheckGate.WaitAsync();
+        try
+        {
+            if (!manual && !UpdateService.ShouldRunAutomaticCheck(
+                    CheckForUpdates, _settings.LastUpdateCheckUtc, DateTimeOffset.UtcNow, TimeSpan.FromHours(18)))
+            {
+                return;
+            }
+
+            IsCheckingForUpdates = true;
+            var result = await _updateService.CheckAsync(AppVersion, CancellationToken.None);
+            _settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
+            _settingsService.Save(_settings);
+
+            switch (result.Status)
+            {
+                case UpdateCheckStatus.UpdateAvailable when result.ReleasePage is not null:
+                    AvailableVersion = result.LatestVersion ?? string.Empty;
+                    _availableReleasePage = result.ReleasePage;
+                    IsUpdateAvailable = true;
+                    _updateStatusKey = "Update.AvailableShort";
+                    break;
+                case UpdateCheckStatus.UpToDate:
+                    IsUpdateAvailable = false;
+                    _availableReleasePage = null;
+                    _updateStatusKey = "Update.UpToDate";
+                    if (manual)
+                        SetStatus("Update.Title", "Update.UpToDate", InfoBarSeverity.Success);
+                    break;
+                default:
+                    _updateStatusKey = "Update.Unable";
+                    if (manual)
+                        SetStatus("Update.Title", "Update.Unable", InfoBarSeverity.Warning);
+                    break;
+            }
+        }
+        finally
+        {
+            IsCheckingForUpdates = false;
+            OnPropertyChanged(nameof(UpdateStatusText));
+            _updateCheckGate.Release();
+        }
+    }
+
+    [RelayCommand]
+    private void ViewUpdate()
+    {
+        var releaseTag = _availableReleasePage is null
+            ? string.Empty
+            : Uri.UnescapeDataString(_availableReleasePage.Segments[^1].TrimEnd('/'));
+        if (_availableReleasePage is not null &&
+            UpdateService.TryValidateReleasePage(_availableReleasePage.AbsoluteUri, releaseTag, out var validated) &&
+            UpdateService.TryParseVersion(releaseTag, out var parsed) &&
+            string.Equals($"{parsed.Major}.{parsed.Minor}.{parsed.Build}", AvailableVersion, StringComparison.Ordinal))
+        {
+            OpenTrustedWebPage(validated);
+        }
+    }
+
+    [RelayCommand]
+    private static void OpenGitHub() => OpenTrustedWebPage(RepositoryPage);
+
+    [RelayCommand]
+    private static void OpenLicense() => OpenTrustedWebPage(LicensePage);
+
+    [RelayCommand]
+    private static void OpenAiAssistance() => OpenTrustedWebPage(AiAssistancePage);
+
+    private static void OpenTrustedWebPage(Uri page)
+    {
+        if (page.Scheme != Uri.UriSchemeHttps ||
+            !string.Equals(page.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
+            !(string.Equals(page.AbsolutePath.TrimEnd('/'), "/Sd-tech-Sol/ClipPull", StringComparison.OrdinalIgnoreCase) ||
+              page.AbsolutePath.StartsWith("/Sd-tech-Sol/ClipPull/", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = page.AbsoluteUri,
+            UseShellExecute = true
+        });
     }
 
     public void CancelStartupChecks() => _startupOperation?.Cancel();
@@ -641,24 +841,48 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
             }
 
             var settings = ReadSettings(ffmpegDirectory);
+            var workItems = Queue.ToList();
 
-            for (var i = 0; i < urls.Count; i++)
+            for (var i = 0; i < workItems.Count; i++)
             {
                 token.ThrowIfCancellationRequested();
-                var url = urls[i];
-                var item = Queue[i];
-                item.State = QueueItemState.Active;
-                item.Progress = 0;
+                var item = workItems[i];
+                if (!Queue.Contains(item))
+                    continue;
 
-                var prefix = $"{i + 1}/{urls.Count}";
-                var progress = new Progress<double>(v => item.Progress = Math.Clamp(v, 0, 100));
+                var url = item.Url;
+                item.State = QueueItemState.Active;
+                item.ResetProgress();
+
+                var prefix = $"{i + 1}/{workItems.Count}";
+                var progress = new Progress<DownloadProgress>(item.ApplyProgress);
 
                 try
                 {
-                    var result = await _mediaService.DownloadAsync(
-                        engine, url, folder, settings, progress,
-                        m => SetStatus(new LocalizedMessage("Status.DownloadTitle", prefix), m, InfoBarSeverity.Informational),
-                        token);
+                    DownloadResult result;
+                    try
+                    {
+                        result = await _mediaService.DownloadAsync(
+                            engine, url, folder, settings, progress,
+                            m => SetStatus(new LocalizedMessage("Status.DownloadTitle", prefix), m, InfoBarSeverity.Informational),
+                            token);
+                    }
+                    catch (RequestedFormatUnavailableException formatError)
+                    {
+                        ffmpegDirectory = await EnsureAutoFallbackFfmpegAsync(token);
+                        settings = ReadSettings(ffmpegDirectory);
+                        item.ResetProgress();
+                        SetStatus(new LocalizedMessage("Status.DownloadTitle", prefix),
+                            new LocalizedMessage("Status.AutoFallback"), InfoBarSeverity.Informational);
+                        var fallbackResult = await _mediaService.DownloadAsync(
+                            engine, url, folder, settings, progress,
+                            m => SetStatus(new LocalizedMessage("Status.DownloadTitle", prefix), m, InfoBarSeverity.Informational),
+                            token, useAutoFallback: true);
+                        result = new DownloadResult(formatError.PartialFiles
+                            .Concat(fallbackResult.Files)
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToArray());
+                    }
 
                     if (result.Files.Count == 0 && settings.UseHistory)
                     {
@@ -742,6 +966,29 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
             active.Progress = Math.Clamp(value, 0, 100);
     }
 
+    private async Task<string> EnsureAutoFallbackFfmpegAsync(CancellationToken cancellationToken)
+    {
+        if (!_ffmpegManager.IsInstalled)
+        {
+            var confirm = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = L("Dialog.FfmpegTitle"),
+                Content = L("Dialog.AutoFallbackFfmpegMessage"),
+                PrimaryButtonText = L("Common.Continue"),
+                CloseButtonText = L("Common.Cancel")
+            };
+            if (await confirm.ShowDialogAsync() != Wpf.Ui.Controls.MessageBoxResult.Primary)
+                throw new LocalizedException("Service.AutoFallbackDeclined");
+        }
+
+        var ffmpegProgress = new Progress<double>(SetActiveProgress);
+        var directory = await _ffmpegManager.EnsureAsync(
+            message => SetStatus("Status.PreparingTitle", message, InfoBarSeverity.Informational),
+            ffmpegProgress, cancellationToken);
+        SetFfmpegState(DependencyState.UpToDate);
+        return directory;
+    }
+
     [RelayCommand]
     private void CopyErrors()
     {
@@ -761,6 +1008,17 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             SetStatus("Status.ClipboardTitle", "Status.ErrorReportCopyFailed", InfoBarSeverity.Warning);
         }
+    }
+
+    [RelayCommand]
+    private void RemoveQueueItem(QueueItemViewModel? item)
+    {
+        if (item is null || item.State == QueueItemState.Active)
+            return;
+
+        Queue.Remove(item);
+        _lastErrors.RemoveAll(error => string.Equals(error.Url, item.Url, StringComparison.Ordinal));
+        HasErrors = _lastErrors.Count > 0;
     }
 
     [RelayCommand]
@@ -971,6 +1229,8 @@ internal sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(DependencySummaryText));
         OnPropertyChanged(nameof(InfoBarTitle));
         OnPropertyChanged(nameof(InfoBarMessage));
+        OnPropertyChanged(nameof(UpdateAvailableText));
+        OnPropertyChanged(nameof(UpdateStatusText));
 
         foreach (var item in Queue)
             item.RefreshLocalization();

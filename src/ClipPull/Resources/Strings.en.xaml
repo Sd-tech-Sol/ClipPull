@@ -33,6 +33,24 @@
     <system:String x:Key="Settings.UseBrowserSession">Use my session when needed</system:String>
     <system:String x:Key="Settings.Components">Components</system:String>
 
+    <system:String x:Key="About.Title">About</system:String>
+    <system:String x:Key="About.Version">Version</system:String>
+    <system:String x:Key="About.Description">Portable Windows media downloader</system:String>
+    <system:String x:Key="About.License">MIT license</system:String>
+    <system:String x:Key="About.AiAssistance">AI assistance</system:String>
+    <system:String x:Key="About.Acknowledgements">Powered by yt-dlp. FFmpeg is used for merging and media conversion when required.</system:String>
+
+    <system:String x:Key="Update.Title">ClipPull update</system:String>
+    <system:String x:Key="Update.Automatic">Automatically check for updates</system:String>
+    <system:String x:Key="Update.Check">Check for updates</system:String>
+    <system:String x:Key="Update.Checking">Checking…</system:String>
+    <system:String x:Key="Update.NotChecked">Not checked</system:String>
+    <system:String x:Key="Update.UpToDate">ClipPull is up to date.</system:String>
+    <system:String x:Key="Update.Unable">Unable to check for updates.</system:String>
+    <system:String x:Key="Update.Available">ClipPull {0} is available.</system:String>
+    <system:String x:Key="Update.AvailableShort">Update available</system:String>
+    <system:String x:Key="Update.View">View update</system:String>
+
     <system:String x:Key="Links.DropHere">Drop your links here</system:String>
     <system:String x:Key="Links.PasteBelow">or paste one or more URLs below</system:String>
     <system:String x:Key="Links.ReviewThenChoose">Review the links, then choose a format.</system:String>
@@ -55,7 +73,7 @@
     <system:String x:Key="Options.Quality720">720p max</system:String>
     <system:String x:Key="Options.Quality480">480p max</system:String>
     <system:String x:Key="Options.QualitySmall">Small file</system:String>
-    <system:String x:Key="Options.QualityAutoTooltip">Auto (fast) requires a ready-to-use video source.</system:String>
+    <system:String x:Key="Options.QualityAutoTooltip">Prefers a ready-to-use video, with automatic video + audio fallback when needed.</system:String>
     <system:String x:Key="Options.Playlist">Playlist</system:String>
     <system:String x:Key="Options.PlaylistTooltip">Allow playlist downloads</system:String>
     <system:String x:Key="Options.DownloadAll">Download all</system:String>
@@ -78,6 +96,12 @@
     <system:String x:Key="Queue.AlreadyDownloaded">Already downloaded</system:String>
     <system:String x:Key="Queue.Failed">Failed</system:String>
     <system:String x:Key="Queue.Cancelled">Cancelled</system:String>
+    <system:String x:Key="Queue.Remove">Remove from queue</system:String>
+    <system:String x:Key="Queue.SpeedBytes">{0:0} B/s</system:String>
+    <system:String x:Key="Queue.SpeedKilobytes">{0:0.0} KB/s</system:String>
+    <system:String x:Key="Queue.SpeedMegabytes">{0:0.0} MB/s</system:String>
+    <system:String x:Key="Queue.SpeedGigabytes">{0:0.0} GB/s</system:String>
+    <system:String x:Key="Queue.EtaRemaining">{0} remaining</system:String>
 
     <system:String x:Key="Output.SaveTo">Save to</system:String>
     <system:String x:Key="Output.Change">Change</system:String>
@@ -142,6 +166,7 @@
     <system:String x:Key="Status.HistoryAlreadyEmpty">History is already empty.</system:String>
     <system:String x:Key="Status.HistoryCleared">Local history cleared.</system:String>
     <system:String x:Key="Status.DownloadFailed">Download failed.</system:String>
+    <system:String x:Key="Status.AutoFallback">No combined stream is available. Preparing the video + audio fallback…</system:String>
 
     <system:String x:Key="Dialog.ImportTitle">Import a list of links</system:String>
     <system:String x:Key="Dialog.TextFilesFilter">Text files (*.txt)|*.txt|All files (*.*)|*.*</system:String>
@@ -149,11 +174,13 @@
     <system:String x:Key="Dialog.PlaylistMessage">Playlist mode is enabled. ClipPull will allow up to {0} items per playlist link.&#x0a;&#x0a;Continue?</system:String>
     <system:String x:Key="Dialog.FfmpegTitle">FFmpeg required</system:String>
     <system:String x:Key="Dialog.FfmpegMessage">This option requires FFmpeg. On first use, ClipPull will download about 140 MB from the BtbN/FFmpeg-Builds project, then verify the SHA-256 before extracting it.&#x0a;&#x0a;Continue?</system:String>
+    <system:String x:Key="Dialog.AutoFallbackFfmpegMessage">This video has no ready-to-use combined stream. ClipPull can download separate video and audio streams and merge them with FFmpeg. On first use, the verified FFmpeg download is about 140 MB.&#x0a;&#x0a;Continue?</system:String>
     <system:String x:Key="Dialog.ClearHistoryTitle">Clear history</system:String>
     <system:String x:Key="Dialog.ClearHistoryMessage">Clear the local download history? Files already downloaded won't be deleted.</system:String>
 
     <system:String x:Key="Service.StartYtDlpFailed">Couldn't start yt-dlp.</system:String>
     <system:String x:Key="Service.YtDlpNoDetail">yt-dlp returned an error without details.</system:String>
+    <system:String x:Key="Service.AutoFallbackDeclined">The video + audio fallback requires FFmpeg and was cancelled.</system:String>
     <system:String x:Key="Service.PreviewFailed">Couldn't load the preview.</system:String>
     <system:String x:Key="Service.Untitled">Untitled</system:String>
     <system:String x:Key="Service.FilesDownloadedOne">1 file downloaded.</system:String>

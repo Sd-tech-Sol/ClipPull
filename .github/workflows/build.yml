@@ -39,7 +39,10 @@ jobs:
         run: ./scripts/generate-icon.ps1
 
       - name: Restore
-        run: dotnet restore src/ClipPull/ClipPull.csproj
+        run: dotnet restore tests/ClipPull.Tests/ClipPull.Tests.csproj
+
+      - name: Test
+        run: dotnet test tests/ClipPull.Tests/ClipPull.Tests.csproj -c Release --no-restore --filter "Category!=RealMedia"
 
       - name: Publish portable EXE
         shell: pwsh
@@ -153,11 +156,17 @@ jobs:
           $version = '${{ steps.version.outputs.version }}'
           $tag = "v$version"
           if ($env:SIGNED -eq 'true') {
-            $signingText = 'Authenticode signed with Microsoft Artifact Signing.'
+            $signingText = '**Signing:** This executable is Authenticode signed with Microsoft Artifact Signing.'
           } else {
-            $signingText = 'Unsigned build. Microsoft Artifact Signing is not configured yet.'
+            $signingText = '**Signing:** This executable is unsigned. Microsoft Artifact Signing is not configured for this release.'
           }
-          $notes = "Portable ClipPull build. $signingText Verified dependency updates, media quality/audio options, playlists, queueing, history, error reports, and preview."
+          $notesPath = "docs/releases/$tag.md"
+          if (-not (Test-Path -LiteralPath $notesPath)) {
+            throw "Release notes are missing: $notesPath"
+          }
+          $notesOutput = 'dist/release-notes.md'
+          (Get-Content -LiteralPath $notesPath -Raw).Replace('{{SIGNING_STATUS}}', $signingText) |
+            Set-Content -LiteralPath $notesOutput -Encoding utf8
 
           gh release view $tag --repo '${{ github.repository }}' 2>$null
           if ($LASTEXITCODE -eq 0) {
@@ -170,7 +179,7 @@ jobs:
               --repo '${{ github.repository }}' `
               --target '${{ github.sha }}' `
               --title "ClipPull $tag" `
-              --notes $notes
+              --notes-file $notesOutput
             exit 0
           }
 
@@ -180,4 +189,4 @@ jobs:
             --repo '${{ github.repository }}' `
             --target '${{ github.sha }}' `
             --title "ClipPull $tag" `
-            --notes $notes
+            --notes-file $notesOutput

@@ -6,11 +6,13 @@
 
 ClipPull is an original project by **Sébastien Dubé**. The idea, product direction, requirements, priorities, approvals, and final decisions are his. Development was AI-assisted, and this document states how.
 
-- **Direction and orchestration.** Sébastien Dubé directed the project through an OpenAI ChatGPT conversation, defining the product goals, requested features, priorities, and approvals.
-- **Implementation.** **OpenAI ChatGPT** was used to help design and modify the application code, documentation, GitHub Actions automation, dependency-update mechanism, and release workflow under Sébastien Dubé's direction and review.
-- **Verification.** ChatGPT was also used to inspect build and release results. The repository's Git history, GitHub Actions runs, release artifacts, and published SHA-256 checksums provide the public technical record of the work.
+- **Project direction.** Sébastien Dubé is the project owner and maintainer. He defines the direction, requirements, priorities and approvals, makes the final decisions, and accepts final responsibility.
+- **OpenAI ChatGPT.** Used for orchestration, architecture and implementation assistance, plus GitHub and release review.
+- **Anthropic Claude Code.** Used for the functional WPF migration work.
+- **OpenAI Codex.** Used for visual UI polish, runtime localization, and subsequent implementation work.
+- **Verification.** AI tools have assisted with build and release inspection. The repository history, GitHub Actions runs, release artifacts, and published SHA-256 checksums remain the public technical record.
 
-This is **AI-assisted development**, not a claim that every line was typed by hand. No AI tool is an author, owner, or maintainer of ClipPull, and the use of OpenAI tools implies no affiliation with or endorsement by OpenAI.
+This is **AI-assisted development**, not a claim that every line was typed by hand. No AI tool is an author, owner, or maintainer of ClipPull. Use of OpenAI or Anthropic tools does not imply affiliation with or endorsement by either company.
 
 **Final responsibility and maintenance rest with Sébastien Dubé.**
 
@@ -24,11 +26,13 @@ No private chain-of-thought, prompt log, or private working notes are published 
 
 ClipPull est un projet original de **Sébastien Dubé**. L'idée, la direction du produit, les exigences, les priorités, les approbations et les décisions finales lui appartiennent. Le développement a été assisté par IA, et ce document explique clairement comment.
 
-- **Direction et orchestration.** Sébastien Dubé a dirigé le projet dans une conversation OpenAI ChatGPT, en définissant les objectifs du produit, les fonctions demandées, les priorités et les approbations.
-- **Implémentation.** **OpenAI ChatGPT** a servi à aider à concevoir et modifier le code de l'application, la documentation, l'automatisation GitHub Actions, le mécanisme de mise à jour des dépendances et le processus de release, sous la direction et la relecture de Sébastien Dubé.
-- **Vérification.** ChatGPT a également servi à examiner les résultats des builds et des releases. L'historique Git, les exécutions GitHub Actions, les artefacts de release et les sommes SHA-256 publiées constituent le registre technique public du travail.
+- **Direction du projet.** Sébastien Dubé est propriétaire et mainteneur du projet. Il définit la direction, les exigences, les priorités et les approbations, prend les décisions finales et assume la responsabilité finale.
+- **OpenAI ChatGPT.** Utilisé pour l'orchestration, l'architecture et l'aide à l'implémentation, ainsi que pour la révision GitHub et des releases.
+- **Anthropic Claude Code.** Utilisé pour les travaux de migration fonctionnelle vers WPF.
+- **OpenAI Codex.** Utilisé pour la finition visuelle de l'interface, la localisation dynamique et les travaux d'implémentation subséquents.
+- **Vérification.** Des outils d'IA ont aidé à examiner les builds et les releases. L'historique du dépôt, les exécutions GitHub Actions, les artefacts de release et les sommes SHA-256 publiées demeurent le registre technique public.
 
-Il s'agit donc d'un **développement assisté par IA**, et non de l'affirmation que chaque ligne a été tapée à la main. Aucun outil d'IA n'est auteur, propriétaire ou mainteneur de ClipPull, et l'utilisation des outils OpenAI n'implique aucune affiliation avec OpenAI ni aucune approbation de sa part.
+Il s'agit donc d'un **développement assisté par IA**, et non de l'affirmation que chaque ligne a été tapée à la main. Aucun outil d'IA n'est auteur, propriétaire ou mainteneur de ClipPull. L'utilisation d'outils OpenAI ou Anthropic n'implique aucune affiliation avec ces entreprises ni aucune approbation de leur part.
 
 **La responsabilité et la maintenance finales reviennent à Sébastien Dubé.**
 

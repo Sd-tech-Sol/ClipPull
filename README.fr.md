@@ -17,8 +17,8 @@ ClipPull transmet les URL à yt-dlp et peut donc fonctionner avec les sites pris
 - Windows 10/11 x64 et un seul `ClipPull.exe` portable
 - Interface en anglais et en français; l’anglais est utilisé au premier lancement et la langue se change instantanément dans les paramètres
 - Plusieurs liens à la fois, traités séquentiellement
-- File visible, progression, suppression des doublons et réessai des échecs
-- Choix de qualité vidéo : Auto, meilleure, 1080p, 720p, 480p ou petit fichier
+- File visible avec vitesse/temps restant, retrait des éléments en attente ou terminés, suppression des doublons et réessai des échecs
+- Choix de qualité vidéo : Auto, meilleure, 1080p, 720p, 480p ou petit fichier; Auto privilégie un flux prêt à l’emploi et utilise une fusion FFmpeg vérifiée seulement au besoin
 - Audio seulement en M4A ou MP3
 - Playlists facultatives avec limite de sécurité configurable
 - Import ou glisser-déposer de listes de liens `.txt`
@@ -26,6 +26,9 @@ ClipPull transmet les URL à yt-dlp et peut donc fonctionner avec les sites pris
 - Rapport d'erreurs copiable
 - Aperçu avec titre, plateforme, durée et miniature lorsque disponibles
 - Utilisation facultative d'une session de navigateur avec `--cookies-from-browser`
+- Préférences et taille/état de la fenêtre conservés dans `%LOCALAPPDATA%\ClipPull\settings.json`
+- Avis non bloquants de mise à jour de ClipPull provenant des releases GitHub officielles, sans téléchargement ni remplacement automatique de l’exécutable
+- Section À propos avec version, licence, remerciements et liens du projet
 
 ## Mises à jour automatiques des dépendances
 
@@ -61,7 +64,7 @@ GitHub Actions construit aussi automatiquement l'exécutable Windows, calcule so
 
 ClipPull est un projet original de **Sébastien Dubé**. L'idée, la direction du produit, les exigences, les priorités, les approbations et les décisions finales lui appartiennent.
 
-Le développement a été assisté par IA : **OpenAI ChatGPT et OpenAI Codex** ont servi pour l'architecture, l'implémentation, la documentation, l'automatisation GitHub et la vérification des builds/releases, sous sa direction et sa relecture. Aucun outil d'IA n'est auteur, propriétaire ou mainteneur du projet, et l'utilisation des outils OpenAI n'implique aucune affiliation avec OpenAI ni aucune approbation de sa part.
+Le développement a été assisté par **OpenAI ChatGPT**, **Anthropic Claude Code** et **OpenAI Codex**, selon les rôles décrits dans la divulgation complète. Aucun outil d'IA n'est auteur, propriétaire ou mainteneur, et leur utilisation n'implique aucune affiliation avec OpenAI ou Anthropic ni aucune approbation de leur part.
 
 **La responsabilité et la maintenance finales reviennent à Sébastien Dubé.** Voir [`AI_ASSISTANCE.md`](AI_ASSISTANCE.md) pour la divulgation complète.
 
